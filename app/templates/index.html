@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ app_name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=6">
+</head>
+<body>
+  <!-- Refreshing Ambient Backgrounds -->
+  <div class="ambient-orb orb-red"></div>
+  <div class="ambient-orb orb-blue"></div>
+  <div class="ambient-orb orb-white"></div>
+  <div class="bg-noise"></div>
+
+  <div id="app" class="fade-in">
+    <header class="app-header">
+      <div class="header-content">
+        <h1>TEKNOFEST<span class="dot">.</span>AI</h1>
+        <p>Geleceğin Teknolojileri için RAG Destekli Bilgi Sistemi</p>
+      </div>
+    </header>
+
+    <main>
+      <section id="chat-container" class="premium-glass">
+        <div id="messages"></div>
+        <form id="chat-form" class="premium-input-bar">
+          <textarea
+            id="user-input"
+            placeholder="TEKNOFEST hakkında bir soru sorun..."
+            rows="1"
+          ></textarea>
+          <div class="controls">
+            <span id="status"></span>
+            <button type="submit" class="submit-btn" aria-label="Gönder">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("user-input");
+    const messages = document.getElementById("messages");
+    const statusEl = document.getElementById("status");
+
+    // Auto-resize
+    input.addEventListener("input", function() {
+      this.style.height = "auto";
+      this.style.height = (this.scrollHeight) + "px";
+      if(this.value.trim() === "") this.style.height = "auto";
+    });
+
+    input.addEventListener("keydown", function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        form.dispatchEvent(new Event('submit'));
+      }
+    });
+
+    function appendMessage(text, from) {
+      const el = document.createElement("div");
+      el.className = "message " + from + " pop-in";
+      
+      const content = document.createElement("div");
+      content.className = "content";
+      content.innerText = text;
+      el.appendChild(content);
+
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+      return el;
+    }
+
+    function appendMeta(el, meta) {
+      if (!meta) return;
+      const metaDiv = document.createElement("div");
+      metaDiv.className = "meta-path";
+      metaDiv.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 16 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg> Yönlendirme: ${meta.route_taken || "Otomatik"}`;
+      el.appendChild(metaDiv);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage(text, "user");
+      input.value = "";
+      input.style.height = "auto";
+
+      statusEl.innerHTML = "<span class='typing-dots'>Yanıtlanıyor<span>.</span><span>.</span><span>.</span></span>";
+      
+      try {
+        const resp = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+        });
+        if (!resp.ok) throw new Error("Sunucu bağlantısı kurulamadı: " + resp.status);
+        
+        const data = await resp.json();
+        const msgEl = appendMessage(data.answer || "(boş yanıt)", "assistant");
+        
+        if (data.sources && data.sources.length > 0) {
+            const sourcesDiv = document.createElement("div");
+            sourcesDiv.className = "sources-container";
+            data.sources.forEach(src => {
+               const title = typeof src === 'string' ? src.substring(0,40) : (src.title || src.url || "Belge").substring(0,40);
+               const url = typeof src === 'string' ? "#" : (src.url || "#");
+               sourcesDiv.innerHTML += `<a href="${url}" target="_blank" class="source-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>${title}</a>`;
+            });
+            msgEl.appendChild(sourcesDiv);
+        }
+        appendMeta(msgEl, { route_taken: data.route_taken });
+      } catch (err) {
+        appendMessage("Hata: " + err.message, "error");
+      } finally {
+        statusEl.innerHTML = "";
+      }
+    });
+  </script>
+</body>
+</html>
