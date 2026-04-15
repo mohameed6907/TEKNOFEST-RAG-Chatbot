@@ -12,7 +12,7 @@ FastAPI, LangChain ve LangGraph tabanli, TEKNOFEST odakli RAG destekli sohbet as
   - TEKNOFEST soruları → önce yerel dokümanlar, sonra TEKNOFEST site indeksleri, en son Tavily web araması
 - Halusinasyon denetimi icin ek self-check adimi
 - Groq birincil LLM, DeepSeek/Kimi/OpenAI icin provider bazli gecis mimarisi
-- HuggingFace sentence-transformers tabanli embedding
+- OpenAI tabanlı embedding (text-embedding-3-small)
 
 ## Kurulum
 
@@ -37,7 +37,8 @@ GROQ_API_KEY=...
 DEEPSEEK_API_KEY=
 KIMI_API_KEY=
 TAVILY_API_KEY=...
-EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL_NAME=text-embedding-3-small
 RAG_CONFIDENCE_THRESHOLD=0.55
 ```
 

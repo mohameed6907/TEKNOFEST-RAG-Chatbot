@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Literal
 
 from chromadb import PersistentClient
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.tools.tavily_search import TavilySearchResults
 
@@ -22,9 +22,9 @@ class RetrievedChunk:
     source_type: SourceType
 
 
-def _build_embeddings(settings: Settings) -> HuggingFaceEmbeddings:
-    return HuggingFaceEmbeddings(
-        model_name=settings.embedding_model_name,
+def _build_embeddings(settings: Settings) -> OpenAIEmbeddings:
+    return OpenAIEmbeddings(
+        model=settings.embedding_model_name,
     )
 
 

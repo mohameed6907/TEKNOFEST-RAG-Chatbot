@@ -6,7 +6,7 @@ from typing import List
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 
 from app.config import get_settings
@@ -41,7 +41,7 @@ def main():
     raw_root.mkdir(parents=True, exist_ok=True)
     settings.chroma_local_docs_path.mkdir(parents=True, exist_ok=True)
 
-    embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model_name)
+    embeddings = OpenAIEmbeddings(model=settings.embedding_model_name)
 
     all_docs = []
     for file_path in iter_files(raw_root):

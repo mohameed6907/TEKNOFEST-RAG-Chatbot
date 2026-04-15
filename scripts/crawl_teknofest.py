@@ -9,7 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 
 from app.config import get_settings
@@ -100,7 +100,7 @@ def build_index(docs: List[Document]) -> None:
     settings = get_settings()
     settings.chroma_teknofest_site_path.mkdir(parents=True, exist_ok=True)
 
-    embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model_name)
+    embeddings = OpenAIEmbeddings(model=settings.embedding_model_name)
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1200,

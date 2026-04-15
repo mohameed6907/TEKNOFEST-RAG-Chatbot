@@ -30,8 +30,9 @@ class Settings(BaseModel):
     openai_api_key: str | None = Field(default=None)
     openai_base_url: str | None = Field(default=None)
 
-    # Embeddings (HuggingFace)
-    embedding_model_name: str = Field(default="sentence-transformers/all-MiniLM-L6-v2")
+    # Embeddings (OpenAI)
+    embedding_provider: str = Field(default="openai")
+    embedding_model_name: str = Field(default="text-embedding-3-small")
 
     # Tavily
     tavily_api_key: str | None = Field(default=None)
@@ -55,7 +56,7 @@ def get_settings() -> Settings:
     Uses standard env vars (subset):
       - LLM_PROVIDER, LLM_MODEL
       - GROQ_API_KEY / DEEPSEEK_API_KEY / KIMI_API_KEY / OPENAI_API_KEY
-      - EMBEDDING_MODEL_NAME
+      - EMBEDDING_PROVIDER, EMBEDDING_MODEL_NAME
       - TAVILY_API_KEY
     """
     base_dir = Path(__file__).resolve().parent.parent
@@ -78,7 +79,8 @@ def get_settings() -> Settings:
         kimi_base_url=os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         openai_base_url=os.getenv("OPENAI_BASE_URL"),
-        embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"),
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "openai"),
+        embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-3-small"),
         tavily_api_key=os.getenv("TAVILY_API_KEY"),
         rag_confidence_threshold=float(os.getenv("RAG_CONFIDENCE_THRESHOLD", "0.55")),
         chroma_local_docs_path=rag_root / "chroma_local_docs",
