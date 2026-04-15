@@ -1,31 +1,69 @@
+"""
+retrievers.py
+=============
+Retrieval layer — vector store construction and top-K similarity search.
+
+All Chroma instances use the centralized EmbeddingService.
+No embedding logic lives here.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Literal
+import logging
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Literal, Optional
 
 from chromadb import PersistentClient
-from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.tools.tavily_search import TavilySearchResults
 
 from app.config import Settings
+from app.rag.embedding_service import get_embedding_service
 
+logger = logging.getLogger(__name__)
 
 SourceType = Literal["local_docs", "teknofest_site", "tavily"]
 
 
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class RetrievedChunk:
+    """A single retrieved chunk with content, metadata, and scoring info."""
+
     content: str
-    metadata: Dict[str, Any]
-    score: float | None
-    source_type: SourceType
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    score: Optional[float] = None
+    source_type: SourceType = "local_docs"
+
+    # Convenience properties
+    @property
+    def source(self) -> str:
+        return (
+            self.metadata.get("source")
+            or self.metadata.get("crawl_source")
+            or self.metadata.get("url")
+            or "unknown"
+        )
+
+    @property
+    def page(self) -> Optional[int]:
+        return self.metadata.get("page_number")
+
+    @property
+    def section(self) -> Optional[str]:
+        return self.metadata.get("section_title")
+
+    @property
+    def source_priority(self) -> int:
+        return int(self.metadata.get("source_priority", 1))
 
 
-def _build_embeddings(settings: Settings) -> OpenAIEmbeddings:
-    return OpenAIEmbeddings(
-        model=settings.embedding_model_name,
-    )
+# ---------------------------------------------------------------------------
+# Chroma helpers
+# ---------------------------------------------------------------------------
 
 
 def _build_chroma_collection(
@@ -33,12 +71,13 @@ def _build_chroma_collection(
     path,
     collection_name: str,
 ) -> Chroma:
-    embeddings = _build_embeddings(settings)
+    """Build a Chroma vectorstore using the centralized EmbeddingService."""
+    lc_embeddings = get_embedding_service(settings).get_langchain_embeddings()
     client = PersistentClient(path=str(path))
     return Chroma(
         client=client,
         collection_name=collection_name,
-        embedding_function=embeddings,
+        embedding_function=lc_embeddings,
     )
 
 
@@ -64,13 +103,29 @@ def build_tavily_tool(settings: Settings) -> TavilySearchResults:
     return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)
 
 
+# ---------------------------------------------------------------------------
+# Retrieval functions
+# ---------------------------------------------------------------------------
+
+
 def retrieve_from_vectorstore(
     vs: Chroma,
     query: str,
     source_type: SourceType,
-    k: int = 5,
+    k: int = 10,
 ) -> List[RetrievedChunk]:
-    docs_and_scores = vs.similarity_search_with_score(query, k=k)
+    """
+    Retrieve top-K chunks from a Chroma vectorstore.
+
+    Returns structured RetrievedChunk objects with full metadata
+    and similarity distance scores.
+    """
+    try:
+        docs_and_scores = vs.similarity_search_with_score(query, k=k)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Vectorstore retrieval failed (%s): %s", source_type, exc)
+        return []
+
     chunks: List[RetrievedChunk] = []
     for doc, score in docs_and_scores:
         chunks.append(
@@ -81,40 +136,36 @@ def retrieve_from_vectorstore(
                 source_type=source_type,
             )
         )
+
+    logger.debug("Retrieved %d chunks from %s (k=%d)", len(chunks), source_type, k)
     return chunks
-
-
-def estimate_chunk_confidence(chunks: List[RetrievedChunk]) -> float:
-    """
-    Chroma score'u distance tabanlıdır (küçük skor daha iyi).
-    Basit normalize edilmiş confidence skoru üretir: [0.0, 1.0]
-    """
-    if not chunks:
-        return 0.0
-    values = []
-    for chunk in chunks:
-        if chunk.score is None:
-            continue
-        values.append(max(0.0, min(1.0, 1.0 - float(chunk.score))))
-    if not values:
-        return 0.0
-    return sum(values) / len(values)
 
 
 def retrieve_from_tavily(
     tool: TavilySearchResults,
     query: str,
 ) -> List[RetrievedChunk]:
-    raw_results = tool.invoke({"query": query})
+    """Retrieve from Tavily web search."""
+    try:
+        raw_results = tool.invoke({"query": query})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Tavily retrieval failed: %s", exc)
+        return []
+
     chunks: List[RetrievedChunk] = []
     for item in raw_results:
         content = item.get("content") or item.get("snippet") or ""
+        if not content.strip():
+            continue
         chunks.append(
             RetrievedChunk(
                 content=content,
                 metadata={
                     "url": item.get("url"),
                     "title": item.get("title"),
+                    "source": item.get("url"),
+                    "document_type": "web",
+                    "source_priority": 1,
                 },
                 score=None,
                 source_type="tavily",
@@ -122,3 +173,29 @@ def retrieve_from_tavily(
         )
     return chunks
 
+
+# ---------------------------------------------------------------------------
+# Confidence estimation
+# ---------------------------------------------------------------------------
+
+
+def estimate_chunk_confidence(chunks: List[RetrievedChunk]) -> float:
+    """
+    Convert distance-based Chroma scores to a confidence value in [0, 1].
+
+    Chroma returns L2 or cosine distances (lower = more similar).
+    We invert and clamp to produce a confidence score.
+    """
+    if not chunks:
+        return 0.0
+    values = []
+    for chunk in chunks:
+        if chunk.score is None:
+            continue
+        # Score is distance: 0 = identical, 2 = opposite direction
+        # Map distance 0→1 to confidence 1→0
+        confidence = max(0.0, min(1.0, 1.0 - float(chunk.score)))
+        values.append(confidence)
+    if not values:
+        return 0.0
+    return sum(values) / len(values)

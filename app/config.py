@@ -30,7 +30,7 @@ class Settings(BaseModel):
     openai_api_key: str | None = Field(default=None)
     openai_base_url: str | None = Field(default=None)
 
-    # Embeddings (OpenAI)
+    # Embeddings (OpenAI only)
     embedding_provider: str = Field(default="openai")
     embedding_model_name: str = Field(default="text-embedding-3-small")
 
@@ -43,6 +43,29 @@ class Settings(BaseModel):
     # Chroma
     chroma_local_docs_path: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent / "RAG" / "chroma_local_docs")
     chroma_teknofest_site_path: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent / "RAG" / "chroma_teknofest_site")
+
+    # ---- Retrieval ----
+    # Candidates fetched from Chroma before reranking
+    retrieval_top_k: int = Field(default=10)
+    # Final chunks passed to the LLM after reranking / compression
+    retrieval_final_k: int = Field(default=5)
+
+    # ---- Reranker ----
+    reranker_enabled: bool = Field(default=True)
+
+    # ---- Chunking ----
+    chunk_min_size: int = Field(default=400)
+    chunk_target_size: int = Field(default=800)
+    chunk_max_size: int = Field(default=1200)
+    chunk_overlap: int = Field(default=150)
+
+    # ---- Evaluation / Logging ----
+    eval_log_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent / "RAG" / "eval_log.jsonl"
+    )
+    eval_dataset_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent / "data" / "eval_dataset.json"
+    )
 
     class Config:
         arbitrary_types_allowed = True
@@ -85,5 +108,20 @@ def get_settings() -> Settings:
         rag_confidence_threshold=float(os.getenv("RAG_CONFIDENCE_THRESHOLD", "0.55")),
         chroma_local_docs_path=rag_root / "chroma_local_docs",
         chroma_teknofest_site_path=rag_root / "chroma_teknofest_site",
+        # Retrieval
+        retrieval_top_k=int(os.getenv("RETRIEVAL_TOP_K", "10")),
+        retrieval_final_k=int(os.getenv("RETRIEVAL_FINAL_K", "5")),
+        # Reranker
+        reranker_enabled=os.getenv("ENABLE_RERANKING", "true").lower() == "true",
+        # Chunking
+        chunk_min_size=int(os.getenv("CHUNK_MIN_SIZE", "400")),
+        chunk_target_size=int(os.getenv("CHUNK_TARGET_SIZE", "800")),
+        chunk_max_size=int(os.getenv("CHUNK_MAX_SIZE", "1200")),
+        chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "150")),
+        # Evaluation
+        eval_log_path=Path(os.getenv("EVAL_LOG_PATH", str(rag_root / "eval_log.jsonl"))),
+        eval_dataset_path=Path(
+            os.getenv("EVAL_DATASET_PATH", str(base_dir / "data" / "eval_dataset.json"))
+        ),
     )
 

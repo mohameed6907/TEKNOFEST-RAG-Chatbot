@@ -1,5 +1,20 @@
+"""
+graph.py
+========
+LangGraph workflow for the TEKNOFEST RAG chatbot.
+
+Pipeline (TEKNOFEST intent path)
+---------------------------------
+intent → local_rag → [teknofest_web] → [tavily_web]
+       → reranker (optional) → context_builder → answer_synthesizer
+       → hallucination_guard → END
+
+Each node is a pure function / async function accepting and returning
+GraphState.  Settings are injected via closure at graph construction time.
+"""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
 
@@ -7,9 +22,12 @@ from langgraph.graph import END, StateGraph
 
 from app.config import Settings
 from app.llm import get_llm_service
-from .hallucination_guard import hallucination_check
-from .prompts import INTENT_CLASSIFICATION_PROMPT, SYSTEM_PROMPT_BASE
-from .retrievers import (
+from app.rag.context_builder import build_context
+from app.rag.evaluator import Timer, log_retrieval_event, tag_failures
+from app.rag.hallucination_guard import hallucination_check
+from app.rag.prompts import INTENT_CLASSIFICATION_PROMPT, SYSTEM_PROMPT_BASE
+from app.rag.reranker import rerank_chunks
+from app.rag.retrievers import (
     RetrievedChunk,
     build_local_docs_retriever,
     build_teknofest_site_retriever,
@@ -19,21 +37,43 @@ from .retrievers import (
     retrieve_from_vectorstore,
 )
 
+logger = logging.getLogger(__name__)
 
 RouteLiteral = Literal["direct", "local", "site", "tavily"]
+
+
+# ---------------------------------------------------------------------------
+# Graph state
+# ---------------------------------------------------------------------------
 
 
 class GraphState(TypedDict, total=False):
     question: str
     intent: Literal["TEKNOFEST", "DIGER"]
+    # All candidates fetched from vector stores
+    retrieved_chunks: List[RetrievedChunk]
+    # Final context after reranking + compression
     context_chunks: List[RetrievedChunk]
+    context_str: str
     answer: str
     route_taken: RouteLiteral
     meta: Dict[str, Any]
+    # Timing
+    _timer_start_ms: float
+
+
+# ---------------------------------------------------------------------------
+# LLM builder helper
+# ---------------------------------------------------------------------------
 
 
 def _build_llm(settings: Settings, temperature: float = 0.2):
     return get_llm_service(settings).get_chat_model(temperature=temperature)
+
+
+# ---------------------------------------------------------------------------
+# Nodes
+# ---------------------------------------------------------------------------
 
 
 async def node_intent_classification(state: GraphState, settings: Settings) -> GraphState:
@@ -41,71 +81,129 @@ async def node_intent_classification(state: GraphState, settings: Settings) -> G
     prompt = INTENT_CLASSIFICATION_PROMPT.format(question=state["question"])
     res = await llm.ainvoke([{"role": "user", "content": prompt}])
     label_raw = (res.content or "").strip().upper()
-    intent: Literal["TEKNOFEST", "DIGER"]
-    if "TEKNOFEST" in label_raw:
-        intent = "TEKNOFEST"
-    else:
-        intent = "DIGER"
+    intent: Literal["TEKNOFEST", "DIGER"] = (
+        "TEKNOFEST" if "TEKNOFEST" in label_raw else "DIGER"
+    )
     state["intent"] = intent
+    state.setdefault("meta", {})["intent"] = intent
     return state
 
 
 def _decide_next_after_intent(state: GraphState) -> str:
-    if state.get("intent") == "TEKNOFEST":
-        return "local_rag"
-    return "direct_llm"
+    return "local_rag" if state.get("intent") == "TEKNOFEST" else "direct_llm"
 
+
+# ---- Local RAG ----
 
 def node_local_rag(state: GraphState, settings: Settings) -> GraphState:
     vs = build_local_docs_retriever(settings)
-    chunks = retrieve_from_vectorstore(vs, query=state["question"], source_type="local_docs", k=5)
-    state.setdefault("context_chunks", [])
-    state["context_chunks"].extend(chunks)
-
-    confidence = estimate_chunk_confidence(chunks)
-    state.setdefault("meta", {})
-    state["meta"]["local_confidence"] = confidence
-    if chunks and confidence >= settings.rag_confidence_threshold:
+    chunks = retrieve_from_vectorstore(
+        vs, query=state["question"],
+        source_type="local_docs",
+        k=settings.retrieval_top_k,
+    )
+    state.setdefault("retrieved_chunks", []).extend(chunks)
+    state.setdefault("meta", {})["local_confidence"] = estimate_chunk_confidence(chunks)
+    if chunks and estimate_chunk_confidence(chunks) >= settings.rag_confidence_threshold:
         return state
+    # Not enough confidence — mark for fallback
     state["meta"]["local_rag_empty"] = True
-    state["context_chunks"] = []
+    # Remove local chunks so cascade continues
+    state["retrieved_chunks"] = [
+        c for c in state.get("retrieved_chunks", []) if c.source_type != "local_docs"
+    ]
     return state
 
 
 def _decide_after_local_rag(state: GraphState) -> str:
-    if state.get("context_chunks"):
-        return "answer_synthesizer"
-    return "teknofest_web"
+    has_local = any(
+        c.source_type == "local_docs" for c in state.get("retrieved_chunks", [])
+    )
+    return "reranker" if has_local else "teknofest_web"
 
+
+# ---- Teknofest site RAG ----
 
 def node_teknofest_web(state: GraphState, settings: Settings) -> GraphState:
     vs = build_teknofest_site_retriever(settings)
-    chunks = retrieve_from_vectorstore(vs, query=state["question"], source_type="teknofest_site", k=5)
-    state.setdefault("context_chunks", [])
-    state["context_chunks"].extend(chunks)
-    confidence = estimate_chunk_confidence(chunks)
-    state.setdefault("meta", {})
-    state["meta"]["site_confidence"] = confidence
-    if chunks and confidence >= settings.rag_confidence_threshold:
+    chunks = retrieve_from_vectorstore(
+        vs, query=state["question"],
+        source_type="teknofest_site",
+        k=settings.retrieval_top_k,
+    )
+    state.setdefault("retrieved_chunks", []).extend(chunks)
+    state.setdefault("meta", {})["site_confidence"] = estimate_chunk_confidence(chunks)
+    if chunks and estimate_chunk_confidence(chunks) >= settings.rag_confidence_threshold:
         return state
     state["meta"]["teknofest_site_empty"] = True
-    state["context_chunks"] = []
+    state["retrieved_chunks"] = [
+        c for c in state.get("retrieved_chunks", []) if c.source_type != "teknofest_site"
+    ]
     return state
 
 
 def _decide_after_teknofest_site(state: GraphState) -> str:
-    if state.get("context_chunks"):
-        return "answer_synthesizer"
-    return "tavily_web"
+    has_site = any(
+        c.source_type == "teknofest_site" for c in state.get("retrieved_chunks", [])
+    )
+    return "reranker" if has_site else "tavily_web"
 
+
+# ---- Tavily web fallback ----
 
 def node_tavily_web(state: GraphState, settings: Settings) -> GraphState:
-    tavily_tool = build_tavily_tool(settings)
-    chunks = retrieve_from_tavily(tavily_tool, query=state["question"])
-    state.setdefault("context_chunks", [])
-    state["context_chunks"].extend(chunks)
+    try:
+        tavily_tool = build_tavily_tool(settings)
+        chunks = retrieve_from_tavily(tavily_tool, query=state["question"])
+        state.setdefault("retrieved_chunks", []).extend(chunks)
+    except RuntimeError as exc:
+        logger.warning("Tavily unavailable: %s", exc)
     return state
 
+
+# ---- Reranker ----
+
+async def node_reranker(state: GraphState, settings: Settings) -> GraphState:
+    retrieved = state.get("retrieved_chunks", [])
+    if not retrieved:
+        state["context_chunks"] = []
+        return state
+
+    if settings.reranker_enabled:
+        llm = _build_llm(settings, temperature=0.0)
+        final = await rerank_chunks(
+            query=state["question"],
+            chunks=retrieved,
+            llm=llm,
+            final_k=settings.retrieval_final_k,
+        )
+        state.setdefault("meta", {})["reranker_used"] = True
+    else:
+        # No reranking — just take the top final_k by insertion order
+        final = retrieved[: settings.retrieval_final_k]
+        state.setdefault("meta", {})["reranker_used"] = False
+
+    state["context_chunks"] = final
+    return state
+
+
+# ---- Context builder ----
+
+def node_context_builder(state: GraphState, settings: Settings) -> GraphState:
+    chunks = state.get("context_chunks") or state.get("retrieved_chunks", [])
+    context_str, selected = build_context(
+        chunks,
+        max_total_chars=6_000,
+        min_score=None,   # score filtering already done via confidence threshold
+        min_rerank=None,  # rerank threshold left to the reranker node
+    )
+    state["context_chunks"] = selected
+    state["context_str"] = context_str
+    state.setdefault("meta", {})["context_chunks_count"] = len(selected)
+    return state
+
+
+# ---- Direct LLM (non-TEKNOFEST) ----
 
 async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
     llm = _build_llm(settings, temperature=0.2)
@@ -116,17 +214,20 @@ async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
     res = await llm.ainvoke(messages)
     state["answer"] = res.content or ""
     state["route_taken"] = "direct"
+    state["context_chunks"] = []
+    state["retrieved_chunks"] = []
     return state
 
+
+# ---- Answer synthesizer ----
 
 async def node_answer_synthesizer(state: GraphState, settings: Settings) -> GraphState:
     llm = _build_llm(settings, temperature=0.1)
 
-    context_texts = []
-    for idx, ch in enumerate(state.get("context_chunks", []), start=1):
-        src = ch.metadata.get("source") or ch.metadata.get("file_path") or ch.metadata.get("url") or "bilinmeyen kaynak"
-        context_texts.append(f"[{idx}] ({ch.source_type}) {src}\n{ch.content}")
-    context_block = "\n\n".join(context_texts)
+    context_block = state.get("context_str") or ""
+    if not context_block:
+        # Fallback: build on the fly
+        context_block, _ = build_context(state.get("context_chunks", []))
 
     user_content = (
         f"Soru:\n{state['question']}\n\n"
@@ -144,7 +245,7 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
     res = await llm.ainvoke(messages)
     state["answer"] = res.content or ""
 
-    # route label, context içindeki baskın source_type'a göre
+    # Determine route label from dominant source type
     types = {ch.source_type for ch in state.get("context_chunks", [])}
     route: RouteLiteral = "local"
     if "teknofest_site" in types:
@@ -155,6 +256,8 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
     return state
 
 
+# ---- Hallucination guard ----
+
 async def node_hallucination_guard(state: GraphState, settings: Settings) -> GraphState:
     result = await hallucination_check(
         settings=settings,
@@ -162,67 +265,117 @@ async def node_hallucination_guard(state: GraphState, settings: Settings) -> Gra
         answer=state.get("answer", ""),
         context_chunks=state.get("context_chunks", []),
     )
-    state.setdefault("meta", {})
-    state["meta"]["hallucination_check"] = result
-    if result.get("status") == "suspicious":
+    state.setdefault("meta", {})["hallucination_check"] = result
+    hal_status = result.get("status", "unknown")
+
+    if hal_status == "suspicious":
         state["answer"] = "Insufficient reliable information available."
+
+    # --- Evaluation logging ---
+    retrieved = state.get("retrieved_chunks", [])
+    selected = state.get("context_chunks", [])
+    _log_eval(settings, state, retrieved, selected, hal_status)
+
     return state
 
 
+def _log_eval(
+    settings: Settings,
+    state: GraphState,
+    retrieved: List[RetrievedChunk],
+    selected: List[RetrievedChunk],
+    hal_status: str,
+) -> None:
+    """Fire-and-forget evaluation log write."""
+    try:
+        failure_tags = tag_failures(
+            retrieved_chunks=retrieved,
+            answer=state.get("answer", ""),
+            hallucination_status=hal_status,
+            recall=1.0,  # No ground-truth at runtime; set 1.0 to avoid auto-tagging
+        )
+        log_retrieval_event(
+            log_path=settings.eval_log_path,
+            query=state.get("question", ""),
+            retrieved_chunks=retrieved,
+            selected_chunks=selected,
+            answer=state.get("answer", ""),
+            route=state.get("route_taken", "unknown"),
+            hallucination_status=hal_status,
+            failure_tags=failure_tags,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Eval log failed: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Graph construction
+# ---------------------------------------------------------------------------
+
+
 def build_teknofest_graph(settings: Settings):
-    """
-    LangGraph tablo tanımı.
-    """
+    """Build and compile the LangGraph workflow."""
     workflow = StateGraph(GraphState)
 
-    async def intent_node(state: GraphState) -> GraphState:
-        return await node_intent_classification(state, settings)
+    # ---- Wrap nodes with settings closure ----
 
-    def local_rag_node(state: GraphState) -> GraphState:
-        return node_local_rag(state, settings)
+    async def intent_node(s: GraphState) -> GraphState:
+        return await node_intent_classification(s, settings)
 
-    def teknofest_web_node(state: GraphState) -> GraphState:
-        return node_teknofest_web(state, settings)
+    def local_rag_node(s: GraphState) -> GraphState:
+        return node_local_rag(s, settings)
 
-    def tavily_web_node(state: GraphState) -> GraphState:
-        return node_tavily_web(state, settings)
+    def teknofest_web_node(s: GraphState) -> GraphState:
+        return node_teknofest_web(s, settings)
 
-    async def direct_llm_node(state: GraphState) -> GraphState:
-        return await node_direct_llm(state, settings)
+    def tavily_web_node(s: GraphState) -> GraphState:
+        return node_tavily_web(s, settings)
 
-    async def answer_synthesizer_node(state: GraphState) -> GraphState:
-        return await node_answer_synthesizer(state, settings)
+    async def reranker_node(s: GraphState) -> GraphState:
+        return await node_reranker(s, settings)
 
-    async def hallucination_guard_node(state: GraphState) -> GraphState:
-        return await node_hallucination_guard(state, settings)
+    def context_builder_node(s: GraphState) -> GraphState:
+        return node_context_builder(s, settings)
 
-    # Nodes
+    async def direct_llm_node(s: GraphState) -> GraphState:
+        return await node_direct_llm(s, settings)
+
+    async def answer_synthesizer_node(s: GraphState) -> GraphState:
+        return await node_answer_synthesizer(s, settings)
+
+    async def hallucination_guard_node(s: GraphState) -> GraphState:
+        return await node_hallucination_guard(s, settings)
+
+    # ---- Register nodes ----
     workflow.add_node("intent", intent_node)
     workflow.add_node("local_rag", local_rag_node)
     workflow.add_node("teknofest_web", teknofest_web_node)
     workflow.add_node("tavily_web", tavily_web_node)
+    workflow.add_node("reranker", reranker_node)
+    workflow.add_node("context_builder", context_builder_node)
     workflow.add_node("direct_llm", direct_llm_node)
     workflow.add_node("answer_synthesizer", answer_synthesizer_node)
     workflow.add_node("hallucination_guard", hallucination_guard_node)
 
-    # Edges
+    # ---- Edges ----
     workflow.set_entry_point("intent")
+
     workflow.add_conditional_edges("intent", _decide_next_after_intent, {
         "local_rag": "local_rag",
         "direct_llm": "direct_llm",
     })
-
     workflow.add_conditional_edges("local_rag", _decide_after_local_rag, {
-        "answer_synthesizer": "answer_synthesizer",
+        "reranker": "reranker",
         "teknofest_web": "teknofest_web",
     })
-
     workflow.add_conditional_edges("teknofest_web", _decide_after_teknofest_site, {
-        "answer_synthesizer": "answer_synthesizer",
+        "reranker": "reranker",
         "tavily_web": "tavily_web",
     })
 
-    workflow.add_edge("tavily_web", "answer_synthesizer")
+    workflow.add_edge("tavily_web", "reranker")
+    workflow.add_edge("reranker", "context_builder")
+    workflow.add_edge("context_builder", "answer_synthesizer")
     workflow.add_edge("answer_synthesizer", "hallucination_guard")
     workflow.add_edge("direct_llm", "hallucination_guard")
     workflow.add_edge("hallucination_guard", END)
@@ -230,13 +383,14 @@ def build_teknofest_graph(settings: Settings):
     return workflow.compile()
 
 
+# ---------------------------------------------------------------------------
+# Public run helper
+# ---------------------------------------------------------------------------
+
+
 async def run_graph(graph, question: str) -> Dict[str, Any]:
-    """
-    Dış dünyadan kullanım için basit wrapper.
-    """
-    initial_state: GraphState = {
-        "question": question,
-    }
+    """Wrapper used by FastAPI and tests."""
+    initial_state: GraphState = {"question": question}
     final_state = await graph.ainvoke(initial_state)
     return {
         "answer": final_state.get("answer", ""),
@@ -253,18 +407,13 @@ async def run_graph(graph, question: str) -> Dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# PNG export helper (unchanged)
+# ---------------------------------------------------------------------------
+
+
 def export_graph_png(settings: Settings, output_path: str | Path) -> Path:
-    """
-    LangGraph yapısını verilen yola PNG olarak çizer.
-
-    Örnek kullanım:
-
-        from app.config import get_settings
-        from app.rag.graph import export_graph_png
-
-        settings = get_settings()
-        export_graph_png(settings, "app/langgraph_teknofest.png")
-    """
+    """Export the LangGraph pipeline as a PNG diagram."""
     graph = build_teknofest_graph(settings=settings)
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -272,11 +421,9 @@ def export_graph_png(settings: Settings, output_path: str | Path) -> Path:
     return path
 
 
-if __name__ == "__main__":  # istege bagli dogrudan calistirma
+if __name__ == "__main__":
     from app.config import get_settings as _get_settings
 
     _settings = _get_settings()
     out = export_graph_png(_settings, Path(__file__).resolve().parent / "langgraph_teknofest.png")
     print(f"LangGraph PNG yazıldı: {out}")
-
-
