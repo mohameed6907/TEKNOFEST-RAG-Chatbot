@@ -1,134 +1,211 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <title>{{ app_name }}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=6">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - AI Platform</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Marked.js (Markdown parsing) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- App CSS -->
+    <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-  <!-- Refreshing Ambient Backgrounds -->
-  <div class="ambient-orb orb-red"></div>
-  <div class="ambient-orb orb-blue"></div>
-  <div class="ambient-orb orb-white"></div>
-  <div class="bg-noise"></div>
+<body class="dark-mode">
 
-  <div id="app" class="fade-in">
-    <header class="app-header">
-      <div class="header-content">
-        <h1>TEKNOFEST<span class="dot">.</span>AI</h1>
-        <p>Geleceğin Teknolojileri için RAG Destekli Bilgi Sistemi</p>
-      </div>
-    </header>
+    <!-- Auth View -->
+    <div id="auth-view" class="view-container">
+        <div class="auth-card">
+            <h1 class="brand-title">TEKNOFEST <span>AI</span></h1>
+            <p class="subtitle">Platforma Hoş Geldiniz</p>
+            
+            <div class="tabs">
+                <button id="tab-login" class="active" onclick="UI.switchAuthTab('login')">Giriş Yap</button>
+                <button id="tab-register" onclick="UI.switchAuthTab('register')">Kayıt Ol</button>
+            </div>
+            
+            <form id="auth-form" onsubmit="App.handleAuth(event)">
+                <input type="text" id="name" placeholder="İsim (Sadece Kayıt İçin)" class="hidden">
+                <input type="email" id="email" placeholder="E-posta Adresi" required>
+                <input type="password" id="password" placeholder="Şifre" required>
+                <button type="submit" class="primary-btn" id="auth-submit">Giriş Yap</button>
+            </form>
+            
+            <div class="divider">veya</div>
+            <button class="secondary-btn" onclick="App.guestLogin()">Misafir Olarak Devam Et</button>
+            <div id="auth-error" class="error-msg"></div>
+        </div>
+    </div>
 
-    <main>
-      <section id="chat-container" class="premium-glass">
-        <div id="messages"></div>
-        <form id="chat-form" class="premium-input-bar">
-          <textarea
-            id="user-input"
-            placeholder="TEKNOFEST hakkında bir soru sorun..."
-            rows="1"
-          ></textarea>
-          <div class="controls">
-            <span id="status"></span>
-            <button type="submit" class="submit-btn" aria-label="Gönder">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
-          </div>
-        </form>
-      </section>
-    </main>
-  </div>
-
-  <script>
-    const form = document.getElementById("chat-form");
-    const input = document.getElementById("user-input");
-    const messages = document.getElementById("messages");
-    const statusEl = document.getElementById("status");
-
-    // Auto-resize
-    input.addEventListener("input", function() {
-      this.style.height = "auto";
-      this.style.height = (this.scrollHeight) + "px";
-      if(this.value.trim() === "") this.style.height = "auto";
-    });
-
-    input.addEventListener("keydown", function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        form.dispatchEvent(new Event('submit'));
-      }
-    });
-
-    function appendMessage(text, from) {
-      const el = document.createElement("div");
-      el.className = "message " + from + " pop-in";
-      
-      const content = document.createElement("div");
-      content.className = "content";
-      content.innerText = text;
-      el.appendChild(content);
-
-      messages.appendChild(el);
-      messages.scrollTop = messages.scrollHeight;
-      return el;
-    }
-
-    function appendMeta(el, meta) {
-      if (!meta) return;
-      const metaDiv = document.createElement("div");
-      metaDiv.className = "meta-path";
-      metaDiv.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 16 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg> Yönlendirme: ${meta.route_taken || "Otomatik"}`;
-      el.appendChild(metaDiv);
-      messages.scrollTop = messages.scrollHeight;
-    }
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-
-      appendMessage(text, "user");
-      input.value = "";
-      input.style.height = "auto";
-
-      statusEl.innerHTML = "<span class='typing-dots'>Yanıtlanıyor<span>.</span><span>.</span><span>.</span></span>";
-      
-      try {
-        const resp = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
-        });
-        if (!resp.ok) throw new Error("Sunucu bağlantısı kurulamadı: " + resp.status);
+    <!-- Main Platform View (Chat & Admin) -->
+    <div id="main-view" class="view-container hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>TEKNOFEST <span>AI</span></h2>
+                <button class="icon-btn new-chat-btn" onclick="App.createNewSession()" title="Yeni Sohbet">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="section-title">Sohbet Geçmişi</div>
+                <ul id="session-list" class="session-list">
+                    <!-- Sessions injected here -->
+                </ul>
+            </div>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar" id="user-avatar">?</div>
+                    <div class="details">
+                        <span id="user-email">Misafir</span>
+                        <span id="user-role" class="badge">Kullanıcı</span>
+                    </div>
+                </div>
+                <!-- Admin & Settings Buttons -->
+                <button id="admin-btn" class="menu-btn hidden" onclick="UI.switchMainTab('admin')">Admin Paneli</button>
+                <button id="chat-btn" class="menu-btn" onclick="UI.switchMainTab('chat')">Sohbet</button>
+                <button class="menu-btn logout" onclick="App.logout()">Çıkış Yap</button>
+            </div>
+        </aside>
         
-        const data = await resp.json();
-        const msgEl = appendMessage(data.answer || "(boş yanıt)", "assistant");
+        <!-- Chat Area -->
+        <main id="chat-area" class="main-content">
+            <header class="topbar">
+                <h3 id="current-session-title">Yeni Sohbet</h3>
+                <div class="topbar-actions">
+                    <button class="icon-btn" onclick="UI.toggleTheme()" title="Tema Değiştir">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    </button>
+                </div>
+            </header>
+            
+            <div id="messages-container" class="messages-container">
+                <div class="empty-state">
+                    <h3>Nasıl Yardımcı Olabilirim?</h3>
+                    <p>TEKNOFEST 2026 hakkında sorular sorabilirsiniz.</p>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <form id="chat-form" onsubmit="App.sendMessage(event)">
+                    <div class="input-wrapper">
+                        <textarea id="message-input" placeholder="TEKNOFEST hakkında bir soru sorun..." rows="1" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <button type="submit" id="send-btn" class="send-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                    <div class="disclaimer">Yapay zeka hatalı sonuçlar üretebilir. Bilgileri teyit edin.</div>
+                </form>
+            </div>
+        </main>
         
-        if (data.sources && data.sources.length > 0) {
-            const sourcesDiv = document.createElement("div");
-            sourcesDiv.className = "sources-container";
-            data.sources.forEach(src => {
-               const title = typeof src === 'string' ? src.substring(0,40) : (src.title || src.url || "Belge").substring(0,40);
-               const url = typeof src === 'string' ? "#" : (src.url || "#");
-               sourcesDiv.innerHTML += `<a href="${url}" target="_blank" class="source-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>${title}</a>`;
-            });
-            msgEl.appendChild(sourcesDiv);
-        }
-        appendMeta(msgEl, { route_taken: data.route_taken });
-      } catch (err) {
-        appendMessage("Hata: " + err.message, "error");
-      } finally {
-        statusEl.innerHTML = "";
-      }
-    });
-  </script>
+        <!-- Admin Area -->
+        <main id="admin-area" class="main-content hidden">
+            <header class="topbar">
+                <h3>Admin Kontrol Paneli</h3>
+            </header>
+            
+            <div class="admin-container">
+                <div class="admin-grid">
+                    <!-- Config Card -->
+                    <div class="admin-card">
+                        <h4>Sistem Konfigürasyonu</h4>
+                        <form id="config-form" onsubmit="App.saveConfig(event)">
+                            <div class="form-group">
+                                <label>LLM Provider</label>
+                                <select id="llm_provider">
+                                    <option value="groq">Groq (Llama 3)</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Retrieval Top K</label>
+                                <input type="number" id="retrieval_top_k" min="1" max="20">
+                            </div>
+                            <div class="form-group checkbox">
+                                <input type="checkbox" id="enable_reranking">
+                                <label for="enable_reranking">Reranker Aktif</label>
+                            </div>
+                            <div class="form-group">
+                                <label>Confidence Threshold (0.0 - 1.0)</label>
+                                <input type="number" id="rag_confidence_threshold" step="0.05" min="0" max="1">
+                            </div>
+                            <button type="submit" class="primary-btn">Kaydet</button>
+                            <span id="config-status" class="status-msg"></span>
+                        </form>
+                    </div>
+                    
+                    <!-- Data Ops Card -->
+                    <div class="admin-card">
+                        <h4>Veri Yönetimi</h4>
+                        <div class="form-group">
+                            <p>Yerel /raw dizinindeki belgeleri (PDF, DOCX, TXT) yeniden indekslemek için çalıştırın.</p>
+                            <button class="secondary-btn" onclick="App.runIngestion()" id="ingest-btn">Vektör Veritabanını Güncelle</button>
+                        </div>
+                        <div id="ingest-output" class="terminal-output"></div>
+                    </div>
+                    
+                    <!-- Document Ops Card (New) -->
+                    <div class="admin-card full-width">
+                        <h4>Belge Yönetimi (RAG)</h4>
+                        <div class="file-manager">
+                            <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-upload').click()">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                <span>Dosya Yüklemek İçin Tıklayın veya Sürükleyin (.pdf, .docx, .txt)</span>
+                                <input type="file" id="file-upload" class="hidden" accept=".pdf,.docx,.txt,.md" onchange="App.uploadAdminFile(event)">
+                            </div>
+                            <div class="table-responsive mt-1">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Dosya Adı</th>
+                                            <th>Boyut</th>
+                                            <th>Tarih</th>
+                                            <th class="text-right">İşlem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="files-tbody">
+                                        <!-- Files populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Users Card -->
+                    <div class="admin-card full-width">
+                        <h4>Kullanıcılar ve Oturumlar</h4>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>İsim</th>
+                                        <th>Rol</th>
+                                        <th>Email / Tür</th>
+                                        <th>Oturum Sayısı</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-tbody">
+                                    <!-- Users populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- App Logic -->
+    <script src="/static/app.js"></script>
 </body>
 </html>

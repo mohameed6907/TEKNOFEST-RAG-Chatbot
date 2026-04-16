@@ -12,17 +12,13 @@ from pydantic import BaseModel
 from .config import get_settings
 from .rag.graph import build_teknofest_graph, run_graph
 from .tracing import init_langsmith, is_tracing_enabled
+from .database import engine, Base
 
+# Import routers
+from .routers import auth, chat, admin
 
-class ChatRequest(BaseModel):
-    message: str
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    sources: List[Dict[str, Any]] = []
-    route_taken: str
-    meta: Dict[str, Any] = {}
+# Initialize DB tables
+Base.metadata.create_all(bind=engine)
 
 
 def create_app() -> FastAPI:
@@ -45,7 +41,13 @@ def create_app() -> FastAPI:
     templates = Jinja2Templates(directory=str(templates_dir))
 
     # Build LangGraph workflow once at startup
-    graph = build_teknofest_graph(settings=settings)
+    # Note: we are not storing `graph` globally anymore because `app/routers/chat.py` builds it independently,
+    # but we can leave it here if other parts use it.
+
+    # Include routers
+    app.include_router(auth.router)
+    app.include_router(chat.router)
+    app.include_router(admin.router)
 
     @app.get("/health")
     async def health() -> Dict[str, Any]:
@@ -59,24 +61,12 @@ def create_app() -> FastAPI:
     async def index(request: Request) -> HTMLResponse:
         return templates.TemplateResponse("index.html", {"request": request, "app_name": settings.app_name})
 
-    @app.post("/api/chat", response_model=ChatResponse)
-    async def chat(req: ChatRequest) -> JSONResponse:
-        if not req.message.strip():
-            raise HTTPException(status_code=400, detail="message is empty")
-
-        try:
-            result = await run_graph(graph=graph, question=req.message)
-        except Exception as exc:  # pragma: no cover - defensive
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return JSONResponse(
-            ChatResponse(
-                answer=result.get("answer", ""),
-                sources=result.get("sources", []),
-                route_taken=result.get("route_taken", "unknown"),
-                meta=result.get("meta", {}),
-            ).model_dump()
-        )
+    @app.get("/{full_path:path}", response_class=HTMLResponse)
+    async def index_fallback(request: Request, full_path: str) -> HTMLResponse:
+        # Avoid intercepting API calls or static files
+        if full_path.startswith("api/") or full_path.startswith("static/"):
+            raise HTTPException(status_code=404)
+        return templates.TemplateResponse("index.html", {"request": request, "app_name": settings.app_name})
 
     return app
 

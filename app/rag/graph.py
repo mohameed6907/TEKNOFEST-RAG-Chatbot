@@ -50,6 +50,7 @@ RouteLiteral = Literal["direct", "local", "site", "tavily"]
 
 class GraphState(TypedDict, total=False):
     question: str
+    chat_history: List[Dict[str, str]]
     intent: Literal["TEKNOFEST", "DIGER"]
     # All candidates fetched from vector stores
     retrieved_chunks: List[RetrievedChunk]
@@ -120,7 +121,14 @@ def _decide_after_local_rag(state: GraphState) -> str:
     has_local = any(
         c.source_type == "local_docs" for c in state.get("retrieved_chunks", [])
     )
-    return "reranker" if has_local else "teknofest_web"
+    
+    question = state.get("question", "").lower()
+    keywords = ["bu yıl", "bu sene", "2026", "güncel", "yeni", "this year", "هذه السنة", "هذا العام", "الآن", "حاليا", "current"]
+    needs_current = any(kw in question for kw in keywords)
+    
+    if has_local and not needs_current:
+        return "reranker"
+    return "teknofest_web"
 
 
 # ---- Teknofest site RAG ----
@@ -208,10 +216,10 @@ def node_context_builder(state: GraphState, settings: Settings) -> GraphState:
 
 async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
     llm = _build_llm(settings, temperature=0.2)
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT_BASE},
-        {"role": "user", "content": state["question"]},
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}]
+    for msg in state.get("chat_history", []):
+        messages.append(msg)
+    messages.append({"role": "user", "content": state["question"]})
     res = await llm.ainvoke(messages)
     state["answer"] = res.content or ""
     state["route_taken"] = "direct"
@@ -239,10 +247,10 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
         f"BAĞLAM:\n{context_block}"
     )
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT_BASE},
-        {"role": "user", "content": user_content},
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}]
+    for msg in state.get("chat_history", []):
+        messages.append(msg)
+    messages.append({"role": "user", "content": user_content})
 
     # Store prompt preview for LangSmith trace metadata
     state.setdefault("meta", {})["prompt_preview"] = user_content[:500]
@@ -425,9 +433,9 @@ def build_teknofest_graph(settings: Settings):
 # ---------------------------------------------------------------------------
 
 
-async def run_graph(graph, question: str) -> Dict[str, Any]:
+async def run_graph(graph, question: str, chat_history: List[Dict[str, str]] = None) -> Dict[str, Any]:
     """Wrapper used by FastAPI and tests."""
-    initial_state: GraphState = {"question": question}
+    initial_state: GraphState = {"question": question, "chat_history": chat_history or []}
 
     # When LangSmith tracing is active, pass a run_name so each query appears
     # as a named root trace in the LangSmith project.
