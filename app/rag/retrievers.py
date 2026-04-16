@@ -13,11 +13,26 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 from chromadb import PersistentClient
-from langchain_community.vectorstores import Chroma
-from langchain_community.tools.tavily_search import TavilySearchResults
+
+try:
+    from langchain_chroma import Chroma
+except ImportError:  # fallback for older installs
+    from langchain_community.vectorstores import Chroma  # type: ignore[assignment]
+
+try:
+    from langchain_tavily import TavilySearch as TavilySearchResults  # noqa: F401
+except ImportError:  # fallback for older installs
+    from langchain_community.tools.tavily_search import TavilySearchResults  # type: ignore[assignment]
 
 from app.config import Settings
 from app.rag.embedding_service import get_embedding_service
+
+try:
+    from langsmith import traceable as _ls_traceable
+    _retrieval_step = _ls_traceable(name="retrieval_step", run_type="retriever")
+except ImportError:  # pragma: no cover
+    def _retrieval_step(fn):  # type: ignore[misc]
+        return fn
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +115,12 @@ def build_teknofest_site_retriever(settings: Settings) -> Chroma:
 def build_tavily_tool(settings: Settings) -> TavilySearchResults:
     if not settings.tavily_api_key:
         raise RuntimeError("TAVILY_API_KEY is not set")
-    return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)
+    try:
+        # New langchain-tavily package
+        return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)  # type: ignore[call-arg]
+    except TypeError:
+        # Older langchain-community signature
+        return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +128,7 @@ def build_tavily_tool(settings: Settings) -> TavilySearchResults:
 # ---------------------------------------------------------------------------
 
 
+@_retrieval_step
 def retrieve_from_vectorstore(
     vs: Chroma,
     query: str,
@@ -141,6 +162,7 @@ def retrieve_from_vectorstore(
     return chunks
 
 
+@_retrieval_step
 def retrieve_from_tavily(
     tool: TavilySearchResults,
     query: str,
@@ -153,7 +175,8 @@ def retrieve_from_tavily(
         return []
 
     chunks: List[RetrievedChunk] = []
-    for item in raw_results:
+    items = raw_results.get("results", []) if isinstance(raw_results, dict) else raw_results
+    for item in items:
         content = item.get("content") or item.get("snippet") or ""
         if not content.strip():
             continue

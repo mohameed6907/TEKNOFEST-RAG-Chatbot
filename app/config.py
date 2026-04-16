@@ -67,6 +67,12 @@ class Settings(BaseModel):
         default_factory=lambda: Path(__file__).resolve().parent.parent / "data" / "eval_dataset.json"
     )
 
+    # ---- LangSmith Observability ----
+    langsmith_tracing: bool = Field(default=False)
+    langsmith_api_key: str | None = Field(default=None)
+    langsmith_project: str = Field(default="teknofest-rag")
+    langsmith_endpoint: str = Field(default="https://api.smith.langchain.com")
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -123,5 +129,10 @@ def get_settings() -> Settings:
         eval_dataset_path=Path(
             os.getenv("EVAL_DATASET_PATH", str(base_dir / "data" / "eval_dataset.json"))
         ),
+        # LangSmith
+        langsmith_tracing=os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true",
+        langsmith_api_key=os.getenv("LANGCHAIN_API_KEY"),
+        langsmith_project=os.getenv("LANGCHAIN_PROJECT", "teknofest-rag"),
+        langsmith_endpoint=os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"),
     )
 

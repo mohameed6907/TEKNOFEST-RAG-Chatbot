@@ -1,0 +1,712 @@
+{
+  "teknofest": {
+    "meta": {
+      "versiyon": "3.0",
+      "olusturma_tarihi": "2025-04-16",
+      "aciklama": "TEKNOFEST Türkiye Teknoloji Yarışmaları Kapsamlı Veri Tabanı",
+      "kaynak": "Resmi TEKNOFEST verileri ve akademik analizler"
+    },
+    "genel_bilgi": {
+      "tam_ad": "TEKNOFEST Türkiye Teknoloji Yarışmaları Festivali",
+      "kisa_ad": "TEKNOFEST",
+      "kurucu_kurum": "T.C. Cumhurbaşkanlığı ve Türkiye Teknoloji Takımı Vakfı (T3 Vakfı)",
+      "ilk_yil": 2018,
+      "misyon": "Türkiye'de teknoloji ve mühendislik alanlarında gençleri teşvik etmek, yenilikçi projeleri desteklemek ve teknoloji ekosistemi oluşturmak",
+      "vizyon": "Türkiye'yi teknoloji üreten, ihraç eden ve küresel teknoloji liderliğine oynayan bir ülke haline getirmek",
+      "slogan": "Teknoloji Devrimini Birlikte Yapıyoruz",
+      "resmi_web": "https://www.teknofest.org",
+      "sosyal_medya": {
+        "twitter": "@TEKNOFEST",
+        "instagram": "@teknofest",
+        "youtube": "TEKNOFEST"
+      }
+    },
+    "tarihce": {
+      "kurulis_sureci": {
+        "yil": 2017,
+        "aciklama": "T3 Vakfı kuruldu; Cumhurbaşkanı Erdoğan önderliğinde TEKNOFEST fikri hayata geçirildi"
+      },
+      "yillar": [
+        {
+          "yil": 2018,
+          "tema": "İlk TEKNOFEST",
+          "mekan": "İstanbul Atatürk Havalimanı",
+          "tarih": "20-23 Eylül 2018",
+          "katilimci_sayisi": 75000,
+          "ziyaretci_sayisi": 500000,
+          "takim_sayisi": 15000,
+          "proje_sayisi": 3200,
+          "onemli_olaylar": [
+            "İlk insansız hava aracı yarışması düzenlendi",
+            "Türkiye'nin ilk büyük ölçekli teknoloji festivali oldu",
+            "İstanbul Atatürk Havalimanı'nın son büyük etkinliği oldu"
+          ]
+        },
+        {
+          "yil": 2019,
+          "tema": "Teknoloji Harikası",
+          "mekan": "İstanbul Atatürk Havalimanı",
+          "tarih": "17-22 Eylül 2019",
+          "katilimci_sayisi": 100000,
+          "ziyaretci_sayisi": 1200000,
+          "takim_sayisi": 25000,
+          "proje_sayisi": 5000,
+          "onemli_olaylar": [
+            "Katılım sayısı bir önceki yıla göre %33 arttı",
+            "Roket yarışması kategorisi eklendi",
+            "Uluslararası katılımcılar ilk kez dahil oldu"
+          ]
+        },
+        {
+          "yil": 2020,
+          "tema": "Geleceği İnşa Ediyoruz",
+          "mekan": "İstanbul Atatürk Havalimanı",
+          "tarih": "3-6 Eylül 2020",
+          "katilimci_sayisi": 60000,
+          "ziyaretci_sayisi": 750000,
+          "takim_sayisi": 30000,
+          "proje_sayisi": 5800,
+          "onemli_olaylar": [
+            "COVID-19 pandemisi koşullarında sınırlı ziyaretçiyle gerçekleşti",
+            "Hibrit format (fiziksel + dijital) kullanıldı",
+            "Tarihte kriz döneminde sürdürülen ilk büyük teknoloji festivali"
+          ]
+        },
+        {
+          "yil": 2021,
+          "tema": "Teknoloji Gücü",
+          "mekan": "Ankara Mogan Gölü",
+          "tarih": "21-26 Eylül 2021",
+          "katilimci_sayisi": 120000,
+          "ziyaretci_sayisi": 1500000,
+          "takim_sayisi": 40000,
+          "proje_sayisi": 7000,
+          "onemli_olaylar": [
+            "İlk kez Ankara'da düzenlendi",
+            "TOGG teknoloji konsepti tanıtıldı",
+            "Bayraktar TB2'nin başarılarıyla millî teknoloji daha fazla öne çıktı",
+            "Uzay kategorisi ilk kez eklendi"
+          ]
+        },
+        {
+          "yil": 2022,
+          "tema": "Millî Teknoloji Hamlesi",
+          "mekan": "Ankara METU / Samsun / Adana",
+          "tarih": "Haziran-Eylül 2022",
+          "katilimci_sayisi": 150000,
+          "ziyaretci_sayisi": 2000000,
+          "takim_sayisi": 65000,
+          "proje_sayisi": 10000,
+          "onemli_olaylar": [
+            "İlk kez çok şehirli format benimsendi",
+            "3 farklı şehirde aynı anda etkinlikler yapıldı",
+            "Oyun ve simülasyon kategorisi eklendi"
+          ]
+        },
+        {
+          "yil": 2023,
+          "tema": "Geleceğin Türkiye'si",
+          "mekan": "İstanbul / Ankara / İzmir / Bursa ve diğer şehirler",
+          "tarih": "Nisan-Eylül 2023",
+          "katilimci_sayisi": 200000,
+          "ziyaretci_sayisi": 3000000,
+          "takim_sayisi": 100000,
+          "proje_sayisi": 15000,
+          "onemli_olaylar": [
+            "Deprem felaketi sonrası millî dayanışma temasıyla güçlendi",
+            "Uluslararası TEKNOFEST programı başlatıldı",
+            "Azerbaycan'da TEKNOFEST Azerbaycan düzenlendi",
+            "Katılımcı sayısı 100 bini geçti"
+          ]
+        },
+        {
+          "yil": 2024,
+          "tema": "Teknoloji Liderliği",
+          "mekan": "İstanbul Atatürk Havalimanı ve diğer şehirler",
+          "tarih": "Mayıs-Eylül 2024",
+          "katilimci_sayisi": 250000,
+          "ziyaretci_sayisi": 3500000,
+          "takim_sayisi": 120000,
+          "proje_sayisi": 20000,
+          "onemli_olaylar": [
+            "TEKNOFEST 7. yılını kutladı",
+            "Yapay zeka kategorisi genişletildi",
+            "Uluslararası TEKNOFEST alanında yeni ülkeler eklendi",
+            "Biyomedikal teknoloji kategorisi pekiştirildi"
+          ]
+        }
+      ]
+    },
+    "organizasyon_yapisi": {
+      "ana_sponsor": "T.C. Cumhurbaşkanlığı",
+      "kurucu_vakif": {
+        "ad": "Türkiye Teknoloji Takımı Vakfı (T3 Vakfı)",
+        "kurulis_yili": 2017,
+        "yonetim_kurulu_baskani": "Selçuk Bayraktar",
+        "misyon": "Türkiye'nin teknoloji ve mühendislik ekosistemini güçlendirmek"
+      },
+      "destekci_kurumlar": [
+        "ASELSAN",
+        "ROKETSAN",
+        "HAVELSAN",
+        "TÜBİTAK",
+        "YÖK (Yükseköğretim Kurulu)",
+        "MEB (Milli Eğitim Bakanlığı)",
+        "STM (Savunma Teknolojileri Mühendislik)",
+        "TAI (TUSAŞ)",
+        "BMC",
+        "Baykar",
+        "Ford Otosan",
+        "Türk Hava Yolları",
+        "Turkcell",
+        "Türk Telekom"
+      ],
+      "ortaklar": [
+        "NASA",
+        "ESA (Avrupa Uzay Ajansı)",
+        "Çeşitli Türk üniversiteleri (150+ kurum)"
+      ],
+      "yonetim_komiteleri": [
+        {
+          "ad": "Organizasyon Komitesi",
+          "gorev": "Genel organizasyon ve lojistik yönetimi"
+        },
+        {
+          "ad": "Teknik Değerlendirme Komitesi",
+          "gorev": "Yarışma jüri süreçleri ve teknik değerlendirme"
+        },
+        {
+          "ad": "Akademik Danışma Kurulu",
+          "gorev": "Yarışma içeriklerinin akademik standartlara uygunluğu"
+        },
+        {
+          "ad": "Girişimcilik ve Ekosistem Komitesi",
+          "gorev": "Proje ticarileştirme ve ekosistem geliştirme"
+        }
+      ]
+    },
+    "kategoriler": [
+      {
+        "id": "KAT001",
+        "ad": "İnsansız Hava Araçları (İHA)",
+        "aciklama": "Otonom ve yarı otonom uçuş sistemleri, drone teknolojileri",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Dikey İniş Kalkış", "Sabit Kanat", "Döner Kanat", "Otonom Sistemler"]
+      },
+      {
+        "id": "KAT002",
+        "ad": "Roket",
+        "aciklama": "Model roket tasarımı, imalatı ve fırlatma sistemleri",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Hobi Roketi", "Nano Uydu Roketi", "EFES - Katı Yakıtlı"]
+      },
+      {
+        "id": "KAT003",
+        "ad": "Yapay Zeka",
+        "aciklama": "Makine öğrenmesi, derin öğrenme ve yapay zeka uygulamaları",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Doğal Dil İşleme", "Bilgisayarla Görme", "Pekiştirmeli Öğrenme", "Yapay Zeka Mühendisliği"]
+      },
+      {
+        "id": "KAT004",
+        "ad": "Savunma Teknolojileri",
+        "aciklama": "Millî savunma sanayii için yenilikçi teknoloji çözümleri",
+        "hedef_kitle": "Üniversite öğrencileri ve mezunlar",
+        "alt_kategoriler": ["Siber Güvenlik", "İHA Savar", "Elektronik Harp", "Muharebe Sistemleri"]
+      },
+      {
+        "id": "KAT005",
+        "ad": "Uzay",
+        "aciklama": "Uydu teknolojileri, uzay araçları ve uzay sistemleri",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "alt_kategoriler": ["CubeSat", "Uzay Habituasyonu", "Yörünge Mekaniği", "Uzay Biyolojisi"]
+      },
+      {
+        "id": "KAT006",
+        "ad": "Tarım Teknolojileri",
+        "aciklama": "Akıllı tarım, hassas tarım ve tarımsal otomasyon çözümleri",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Tarım İHA'sı", "Toprak Analizi", "Sulama Otomasyonu", "Ürün İzleme"]
+      },
+      {
+        "id": "KAT007",
+        "ad": "Sağlık Teknolojileri",
+        "aciklama": "Tıbbi cihazlar, biyomedikal uygulamalar ve sağlık bilişimi",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "alt_kategoriler": ["Medikal Görüntüleme", "Rehabilitasyon Cihazları", "Hastalık Tanı Sistemleri", "Biyosensörler"]
+      },
+      {
+        "id": "KAT008",
+        "ad": "Enerji",
+        "aciklama": "Yenilenebilir enerji, enerji verimliliği ve enerji depolama",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Güneş Enerjisi", "Rüzgar Enerjisi", "Hidrojen", "Enerji Hasadı"]
+      },
+      {
+        "id": "KAT009",
+        "ad": "Eğitim Teknolojileri",
+        "aciklama": "Dijital öğrenme araçları, eğitimde yapay zeka ve gamification",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["E-Öğrenme Platformları", "AR/VR Eğitim", "Uyarlanabilir Öğrenme", "STEM Eğitimi"]
+      },
+      {
+        "id": "KAT010",
+        "ad": "Akıllı Ulaşım",
+        "aciklama": "Otonom araçlar, trafik yönetimi ve akıllı şehir ulaşımı",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "alt_kategoriler": ["Otonom Araç", "Elektrikli Araç", "Akıllı Trafik", "Mikromobilite"]
+      },
+      {
+        "id": "KAT011",
+        "ad": "Robotik",
+        "aciklama": "Endüstriyel ve hizmet robotları, insansı robotlar, ROS uygulamaları",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["İnsansı Robot", "Endüstriyel Robot", "Servis Robotu", "Swarm Robotics"]
+      },
+      {
+        "id": "KAT012",
+        "ad": "Nesnelerin İnterneti (IoT)",
+        "aciklama": "Akıllı cihazlar, sensör ağları ve IoT altyapı çözümleri",
+        "hedef_kitle": "Üniversite ve lise öğrencileri",
+        "alt_kategoriler": ["Akıllı Ev", "Endüstriyel IoT", "Giyilebilir Teknoloji", "Akıllı Şehir"]
+      },
+      {
+        "id": "KAT013",
+        "ad": "Oyun ve Simülasyon",
+        "aciklama": "Oyun geliştirme, eğitim simülasyonları ve sanal gerçeklik",
+        "hedef_kitle": "Lise ve üniversite öğrencileri",
+        "alt_kategoriler": ["Mobil Oyun", "PC/Konsol Oyunu", "Ciddi Oyunlar", "VR Simülasyon"]
+      },
+      {
+        "id": "KAT014",
+        "ad": "Su Altı Sistemleri",
+        "aciklama": "Sualtı araçları, denizaltı teknolojileri ve okyanus araştırmaları",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "alt_kategoriler": ["ROV", "AUV", "Sualtı Sensörleri", "Okyanus Araştırması"]
+      },
+      {
+        "id": "KAT015",
+        "ad": "Lise Kategorisi",
+        "aciklama": "Lise öğrencilerine özel özgün teknoloji projeleri",
+        "hedef_kitle": "Yalnızca lise öğrencileri",
+        "alt_kategoriler": ["Biyomedikal", "Çevre Teknolojisi", "Yazılım", "Donanım"]
+      }
+    ],
+    "yarismalar": [
+      {
+        "id": "YAR001",
+        "ad": "İnsansız Hava Araçları - Dikey İniş Kalkış",
+        "kategori_id": "KAT001",
+        "aciklama": "Tamamen özerk dikey kalkış ve iniş yapabilen, belirli görevleri tamamlayabilen insansız hava araçlarının tasarım, üretim ve uçuş yarışması",
+        "hedef_kitle": "Üniversite lisans/yüksek lisans öğrencileri",
+        "takim_buyuklugu": "3-10 kişi",
+        "teknik_gereksinimler": [
+          "Tamamen bağımsız (autonomous) uçuş kabiliyeti",
+          "Dikey kalkış ve iniş (VTOL) kapasitesi",
+          "Göreve özel yük taşıma sistemi",
+          "Gerçek zamanlı telemetri ve veri aktarımı",
+          "GPS bağımsız iç navigasyon alternatifi",
+          "Acil durum güvenlik protokolleri"
+        ],
+        "asamalar": [
+          {
+            "asama_no": 1,
+            "ad": "Ön Kayıt ve Belge Teslimi",
+            "aciklama": "Proje özeti, teknik doküman, takım bilgileri ve gerekli belgeler",
+            "sure": "Başvuru döneminde (genellikle Kasım-Ocak)"
+          },
+          {
+            "asama_no": 2,
+            "ad": "Ön Tasarım Raporu",
+            "aciklama": "Teknik tasarım detayları, CDR (Kritik Tasarım Gözden Geçirme) dokümanı",
+            "sure": "Ocak-Mart"
+          },
+          {
+            "asama_no": 3,
+            "ad": "Ön Eleme (Online Değerlendirme)",
+            "aciklama": "Sunulan teknik rapor ve video üzerinden jüri değerlendirmesi",
+            "sure": "Mart-Nisan"
+          },
+          {
+            "asama_no": 4,
+            "ad": "Teknik Kontrol (CDR)",
+            "aciklama": "Fiziksel araç inceleme ve güvenlik onayı",
+            "sure": "Mayıs-Haziran"
+          },
+          {
+            "asama_no": 5,
+            "ad": "Final Uçuş Görevleri",
+            "aciklama": "Gerçek uçuş görevleri ve puan tablosu oluşturma",
+            "sure": "Festival döneminde (Eylül)"
+          }
+        ],
+        "degerlendirme": [
+          {
+            "kriter": "Görev Tamamlama",
+            "agirlik_yuzde": 40,
+            "aciklama": "Belirlenen uçuş görevlerinin başarıyla tamamlanması"
+          },
+          {
+            "kriter": "Teknik Tasarım",
+            "agirlik_yuzde": 25,
+            "aciklama": "Aracın teknik yetkinliği ve yenilikçi çözümler"
+          },
+          {
+            "kriter": "Özerklik Seviyesi",
+            "aciklama": "İnsan müdahalesinden bağımsız karar verme kapasitesi",
+            "agirlik_yuzde": 20
+          },
+          {
+            "kriter": "Sunum ve Rapor",
+            "agirlik_yuzde": 15,
+            "aciklama": "Teknik rapor kalitesi ve jüri sunumu"
+          }
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "200.000 TL", "ekstra": "Savunma sanayi iş görüşmesi, teknoloji transferi değerlendirme"},
+          {"siralama": 2, "odeme": "100.000 TL", "ekstra": "Kuluçka merkezi bursu"},
+          {"siralama": 3, "odeme": "50.000 TL", "ekstra": "Teknik destek paketi"}
+        ]
+      },
+      {
+        "id": "YAR002",
+        "ad": "Model Uydu (CubeSat)",
+        "kategori_id": "KAT005",
+        "aciklama": "1U, 2U veya 3U CubeSat standartlarına uygun nano-uydu tasarımı, üretimi ve misyon simülasyonu",
+        "hedef_kitle": "Üniversite öğrencileri (lisans, yüksek lisans, doktora)",
+        "takim_buyuklugu": "4-12 kişi",
+        "teknik_gereksinimler": [
+          "CubeSat standartlarına (1U/2U/3U) tam uyumluluk",
+          "Haberleşme sistemi (UHF/VHF/S-Band)",
+          "Enerji yönetim sistemi (EPS)",
+          "Tutum belirleme ve kontrol sistemi (ADCS)",
+          "Yük (payload) tasarımı ve entegrasyonu",
+          "Yer istasyonu yazılımı"
+        ],
+        "asamalar": [
+          {"asama_no": 1, "ad": "Kavramsal Tasarım (CDR)", "aciklama": "Misyon kavramı, teknik gereksinimler ve ilk tasarım"},
+          {"asama_no": 2, "ad": "Ön Tasarım Gözden Geçirme (PDR)", "aciklama": "Alt sistem tasarımları ve entegrasyon planı"},
+          {"asama_no": 3, "ad": "Kritik Tasarım Gözden Geçirme", "aciklama": "Üretim için hazır tasarım paketi"},
+          {"asama_no": 4, "ad": "Test ve Doğrulama", "aciklama": "Titreşim, termal vakum ve EM uyumluluk testleri"},
+          {"asama_no": 5, "ad": "Misyon Simülasyonu", "aciklama": "Festival sırasında yer istasyonu ile gerçek simülasyon"}
+        ],
+        "degerlendirme": [
+          {"kriter": "Teknik Tasarım", "agirlik_yuzde": 35},
+          {"kriter": "Misyon Özgünlüğü", "agirlik_yuzde": 20},
+          {"kriter": "Test Sonuçları", "agirlik_yuzde": 25},
+          {"kriter": "Sunum", "agirlik_yuzde": 20}
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "250.000 TL", "ekstra": "TÜBİTAK Uzay destekli araştırma fırsatı"},
+          {"siralama": 2, "odeme": "150.000 TL"},
+          {"siralama": 3, "odeme": "75.000 TL"}
+        ]
+      },
+      {
+        "id": "YAR003",
+        "ad": "Yapay Zeka - Serbest Kategori",
+        "kategori_id": "KAT003",
+        "aciklama": "Gerçek dünya problemlerine yönelik özgün yapay zeka çözümleri geliştirme",
+        "hedef_kitle": "Lise ve üniversite öğrencileri",
+        "takim_buyuklugu": "2-8 kişi",
+        "teknik_gereksinimler": [
+          "Çalışan prototip veya üretim ortamı",
+          "Belgelenmiş veri seti ve model mimarisi",
+          "Performans metrikleri ve benchmark sonuçları",
+          "Açıklanabilir YZ (XAI) bileşeni tercih edilir",
+          "Etik YZ prensiplerine uygunluk"
+        ],
+        "asamalar": [
+          {"asama_no": 1, "ad": "Başvuru ve Özet", "aciklama": "Problem tanımı ve önerilen çözüm özeti"},
+          {"asama_no": 2, "ad": "Teknik Rapor", "aciklama": "Model detayları, veri analizi, deneysel sonuçlar"},
+          {"asama_no": 3, "ad": "Demo Sunumu", "aciklama": "Jüri önünde canlı sistem demonstrasyonu"}
+        ],
+        "degerlendirme": [
+          {"kriter": "Yenilikçilik", "agirlik_yuzde": 30},
+          {"kriter": "Teknik Yetkinlik", "agirlik_yuzde": 30},
+          {"kriter": "Etki ve Kullanılabilirlik", "agirlik_yuzde": 25},
+          {"kriter": "Sunum", "agirlik_yuzde": 15}
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "150.000 TL"},
+          {"siralama": 2, "odeme": "75.000 TL"},
+          {"siralama": 3, "odeme": "37.500 TL"}
+        ]
+      },
+      {
+        "id": "YAR004",
+        "ad": "Roket - EFES Kategorisi",
+        "kategori_id": "KAT002",
+        "aciklama": "Katı yakıtlı roket tasarımı, simulasyon ve gerçek fırlatma; hedef irtifaya ulaşma ve geri kazanım",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "takim_buyuklugu": "4-15 kişi",
+        "teknik_gereksinimler": [
+          "Tamamen yerli tasarım ve üretim zorunluluğu",
+          "Katı yakıtlı motor kullanımı (ticari motor yasak)",
+          "Geri kazanım sistemi (paraşüt veya otonom iniş)",
+          "Telemetri ve veri toplama sistemi",
+          "Güvenlik protokolleri ve fail-safe mekanizmaları"
+        ],
+        "asamalar": [
+          {"asama_no": 1, "ad": "Başvuru", "aciklama": "Takım kaydı ve proje özeti"},
+          {"asama_no": 2, "ad": "PDR (Ön Tasarım)", "aciklama": "Aerodinamik analiz, motor hesapları"},
+          {"asama_no": 3, "ad": "CDR (Kritik Tasarım)", "aciklama": "Üretim dokümanları, test planları"},
+          {"asama_no": 4, "ad": "Motor Testi", "aciklama": "Fırlatma öncesi motor yakma testi"},
+          {"asama_no": 5, "ad": "Fırlatma Görevi", "aciklama": "Gerçek roket fırlatması ve değerlendirme"}
+        ],
+        "degerlendirme": [
+          {"kriter": "İrtifa Hedefi Doğruluğu", "agirlik_yuzde": 35},
+          {"kriter": "Başarılı Geri Kazanım", "agirlik_yuzde": 25},
+          {"kriter": "Teknik Tasarım Kalitesi", "agirlik_yuzde": 25},
+          {"kriter": "Güvenlik", "agirlik_yuzde": 15}
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "300.000 TL", "ekstra": "ROKETSAN ile teknik iş birliği"},
+          {"siralama": 2, "odeme": "150.000 TL"},
+          {"siralama": 3, "odeme": "75.000 TL"}
+        ]
+      },
+      {
+        "id": "YAR005",
+        "ad": "Siber Güvenlik",
+        "kategori_id": "KAT004",
+        "aciklama": "CTF (Capture The Flag) ve savunma odaklı siber güvenlik yarışması",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "takim_buyuklugu": "2-5 kişi",
+        "teknik_gereksinimler": [
+          "Web uygulama güvenliği bilgisi",
+          "Ağ güvenliği ve sızma testi",
+          "Tersine mühendislik",
+          "Şifreleme ve kriptanaliz",
+          "Dijital adli bilişim"
+        ],
+        "asamalar": [
+          {"asama_no": 1, "ad": "Online CTF Eleme", "aciklama": "24-48 saatlik online CTF yarışması"},
+          {"asama_no": 2, "ad": "Yazılı Sınav", "aciklama": "Siber güvenlik bilgi testi"},
+          {"asama_no": 3, "ad": "Final - Canlı Savunma/Saldırı", "aciklama": "Festival ortamında gerçek zamanlı siber atış talimleri"}
+        ],
+        "degerlendirme": [
+          {"kriter": "CTF Puanı", "agirlik_yuzde": 50},
+          {"kriter": "Teknik Yazılı Sınav", "agirlik_yuzde": 25},
+          {"kriter": "Canlı Görev Performansı", "agirlik_yuzde": 25}
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "100.000 TL", "ekstra": "HAVELSAN, STM iş görüşmesi"},
+          {"siralama": 2, "odeme": "50.000 TL"},
+          {"siralama": 3, "odeme": "25.000 TL"}
+        ]
+      },
+      {
+        "id": "YAR006",
+        "ad": "Su Altı Sistemleri",
+        "kategori_id": "KAT014",
+        "aciklama": "Sualtı görevi tamamlayabilen, bağımsız veya yarı-otonom sualtı araçları tasarım ve yapım yarışması",
+        "hedef_kitle": "Üniversite öğrencileri",
+        "takim_buyuklugu": "5-15 kişi",
+        "teknik_gereksinimler": [
+          "ROV veya AUV tasarımı ve üretimi",
+          "Sualtı haberleşme sistemi",
+          "Su geçirmezlik ve basınç direnci",
+          "Kamera ve görüntü işleme sistemi",
+          "Manipülatör kol (varsa)"
+        ],
+        "asamalar": [
+          {"asama_no": 1, "ad": "Teknik Rapor", "aciklama": "Tasarım dokümentasyonu ve simülasyon sonuçları"},
+          {"asama_no": 2, "ad": "Havuz Testi", "aciklama": "Kontrollü havuzda görev testi"},
+          {"asama_no": 3, "ad": "Açık Su Finali", "aciklama": "Gerçek ortamda görev tamamlama"}
+        ],
+        "degerlendirme": [
+          {"kriter": "Görev Tamamlama", "agirlik_yuzde": 45},
+          {"kriter": "Teknik Yetkinlik", "agirlik_yuzde": 30},
+          {"kriter": "Özerklik", "agirlik_yuzde": 15},
+          {"kriter": "Sunum", "agirlik_yuzde": 10}
+        ],
+        "oduller": [
+          {"siralama": 1, "odeme": "100.000 TL"},
+          {"siralama": 2, "odeme": "50.000 TL"},
+          {"siralama": 3, "odeme": "25.000 TL"}
+        ]
+      }
+    ],
+    "katilim_sureci": {
+      "genel_adimlar": [
+        {
+          "adim": 1,
+          "baslik": "Platform Kaydı",
+          "aciklama": "teknofest.org üzerinden bireysel kayıt",
+          "sure": "Ekim-Kasım"
+        },
+        {
+          "adim": 2,
+          "baslik": "Kategori Seçimi",
+          "aciklama": "İlgi alanına uygun yarışma kategorisi belirleme",
+          "sure": "Kayıt sırasında"
+        },
+        {
+          "adim": 3,
+          "baslik": "Takım Kurma",
+          "aciklama": "Danışman akademisyen dahil takım oluşturma",
+          "sure": "Kasım-Aralık"
+        },
+        {
+          "adim": 4,
+          "baslik": "Proje Başvurusu",
+          "aciklama": "Proje özeti, teknik taslak ve takım belgelerini sisteme yükleme",
+          "sure": "Aralık-Ocak"
+        },
+        {
+          "adim": 5,
+          "baslik": "Ön Değerlendirme",
+          "aciklama": "Teknik jüri tarafından başvuruların ilk eleme aşaması",
+          "sure": "Ocak-Şubat"
+        },
+        {
+          "adim": 6,
+          "baslik": "Teknik Tasarım Aşaması",
+          "aciklama": "PDR/CDR dokümanları hazırlama ve teslim etme",
+          "sure": "Şubat-Mayıs"
+        },
+        {
+          "adim": 7,
+          "baslik": "Finale Katılım",
+          "aciklama": "Festival döneminde görevler, testler ve sunumlar",
+          "sure": "Eylül (Festival)"
+        }
+      ],
+      "gerekli_belgeler": [
+        "Öğrenci kimlik belgesi / transkript",
+        "Danışman onay mektubu (üniversite kategorisinde)",
+        "Proje teknik özeti (2-5 sayfa)",
+        "Takım anlaşması (birden fazla kişi varsa)",
+        "Etik kurul onayı (gerekli kategorilerde)"
+      ],
+      "basvuru_ucretleri": "Tüm kategoriler ücretsizdir",
+      "yaramayacaklar": [
+        "Mezun olan ve 2 yılı geçmemiş kişiler belirli kategorilerde kabul edilir",
+        "Yabancı uyruklu Türkiye'de okuyan öğrenciler katılabilir",
+        "Birden fazla takımda aynı anda yer almak yasaktır"
+      ]
+    },
+    "istatistikler": {
+      "toplam_katilimci_2018_2024": 870000,
+      "toplam_ziyaretci_2018_2024": 12450000,
+      "toplam_proje_2018_2024": 66000,
+      "uluslararasi_katilimci_ulke_sayisi": 40,
+      "partner_universite_sayisi": 150,
+      "toplam_odul_miktari_tl": "500.000.000+",
+      "kadin_katilim_orani_yuzde": 35,
+      "lise_katilim_orani_yuzde": 30,
+      "universite_katilim_orani_yuzde": 65
+    },
+    "basarili_projeler": [
+      {
+        "id": "PRJ001",
+        "proje_adi": "ALBATROS - Otonom Arama Kurtarma İHA",
+        "kategori": "İnsansız Hava Araçları",
+        "yil": 2021,
+        "takim": "ODTÜ Aeronika Takımı",
+        "aciklama": "Deprem ve afet bölgelerinde otonom arama-kurtarma operasyonları yapabilen gelişmiş İHA sistemi. Termal kamera ve yapay zeka ile hayatta kalan bireyler tespit edilebiliyor.",
+        "basari": "1. Sıra - Altın Madalya",
+        "sonuc": "Proje AFAD iş birliğiyle pilot uygulamaya alındı"
+      },
+      {
+        "id": "PRJ002",
+        "proje_adi": "GÖKTÜRK-3 CubeSat",
+        "kategori": "Uzay",
+        "yil": 2022,
+        "takim": "İTÜ Uzay Sistemleri Takımı",
+        "aciklama": "3U boyutunda, Türkiye'nin tropikal ormanlarındaki biyoçeşitlilik değişimini izleyen hiperspektral sensör yüklü nano-uydu.",
+        "basari": "1. Sıra",
+        "sonuc": "TÜBİTAK Uzay destekleriyle geliştirme süreci devam etti"
+      },
+      {
+        "id": "PRJ003",
+        "proje_adi": "NeuroAssist - Felç Rehabilitasyon Sistemi",
+        "kategori": "Sağlık Teknolojileri",
+        "yil": 2023,
+        "takim": "Hacettepe Biyomedikal Mühendisliği",
+        "aciklama": "EEG ve EMG sinyallerini kullanan yapay zeka destekli, ev ortamında kullanılabilen felç rehabilitasyon robotu. Hastaların motor fonksiyonlarını yeniden kazanmasına yardım ediyor.",
+        "basari": "1. Sıra + Özel Ödül",
+        "sonuc": "Startup kuruldu, seri A yatırım alındı"
+      },
+      {
+        "id": "PRJ004",
+        "proje_adi": "TurboRocket-2024",
+        "kategori": "Roket",
+        "yil": 2024,
+        "takim": "Yıldız Teknik Üniversitesi Roket Takımı",
+        "aciklama": "10 km irtifaya ulaşan, tamamen yerli üretim katı yakıtlı roket. Geri kazanım sistemi %100 başarı oranıyla çalıştı.",
+        "basari": "EFES Kategorisi 1. Sıra",
+        "sonuc": "ROKETSAN ile Ar-Ge iş birliği protokolü imzalandı"
+      }
+    ],
+    "girisimcilik_ekosistemi": {
+      "programlar": [
+        {
+          "ad": "TEKNOFEST Teknoloji Başarı Ödülleri",
+          "aciklama": "En iyi projelere ticari destek ve mentorluk",
+          "destek": "Danışmanlık, ağ kurma, yatırımcı sunumu"
+        },
+        {
+          "ad": "T3 Girişim Merkezi",
+          "aciklama": "TEKNOFEST mezunu projelere kuluçka merkezi desteği",
+          "destek": "Ofis alanı, teknik altyapı, hukuki danışmanlık"
+        },
+        {
+          "ad": "Savunma Sanayi İş Birliği",
+          "aciklama": "ASELSAN, ROKETSAN ve diğer kurumlarla iş birliği protokolleri",
+          "destek": "Proje satın alma, araştırma sözleşmeleri"
+        }
+      ],
+      "istatistikler": {
+        "kurulan_startup_sayisi": 500,
+        "alinan_toplam_yatirim_dolar": "200.000.000+",
+        "istihdam_edilen_muhendis": 5000,
+        "savunma_sanayii_is_birligi_sayisi": 120
+      }
+    },
+    "swot_analizi": {
+      "gucler": [
+        "Devlet desteğiyle güçlü finansman",
+        "Geniş sanayi-akademi-devlet iş birliği ağı",
+        "Motivasyon artışı - millî teknik kimlik",
+        "Geniş kategori çeşitliliği",
+        "Yüksek marka bilinirliği"
+      ],
+      "zayifliklar": [
+        "Bazı kategorilerde uluslararası standartların altında kalabilme",
+        "Puanlama şeffaflığı endişeleri",
+        "Bölgeler arası katılım eşitsizliği",
+        "Mentörlük ve eğitim desteğinin yetersizliği"
+      ],
+      "firsatlar": [
+        "Uluslararasılaşma potansiyeli",
+        "Endüstri 4.0 ve yapay zeka dalgası",
+        "Genç nüfus demografisi",
+        "Savunma sanayi büyümesi",
+        "Uzay ekonomisine yönelim"
+      ],
+      "tehditler": [
+        "Beyin göçü - yetenekli katılımcıların yurt dışına çıkması",
+        "Ekonomik dalgalanmalar",
+        "Uluslararası rekabet",
+        "Siyasi bağımlılık riski"
+      ]
+    },
+    "gelecek_vizyonu": {
+      "hedefler_2030": [
+        "Katılımcı sayısını 500.000'e çıkarma",
+        "50 ülkede TEKNOFEST etkinliği düzenleme",
+        "1000 teknoloji startupı mezun etme",
+        "Türkiye'nin ilk yerli uydusunu TEKNOFEST mezunu takımın fırlatması",
+        "Yapay zeka ve kuantum hesaplama kategorilerini güçlendirme"
+      ],
+      "uluslararasi_genisletme": [
+        "TEKNOFEST Azerbaycan (2022'den itibaren aktif)",
+        "TEKNOFEST Pakistan (pilot aşama)",
+        "TEKNOFEST Afrika (planlama aşaması)",
+        "TEKNOFEST Orta Asya (hedef)"
+      ]
+    }
+  }
+}

@@ -27,6 +27,13 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from app.rag.retrievers import RetrievedChunk
 
+try:
+    from langsmith import traceable as _ls_traceable
+    _rerank_step = _ls_traceable(name="rerank_step", run_type="chain")
+except ImportError:  # pragma: no cover
+    def _rerank_step(fn):  # type: ignore[misc]
+        return fn
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -55,6 +62,7 @@ Scores (comma-separated, one per chunk, same order):"""
 # ---------------------------------------------------------------------------
 
 
+@_rerank_step
 async def rerank_chunks(
     query: str,
     chunks: List[RetrievedChunk],

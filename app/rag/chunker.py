@@ -51,19 +51,25 @@ _HEADING_PATTERNS = [
     re.compile(r"^\d+(\.\d+)*[\.\)]\s+([A-ZÇĞİÖŞÜa-z].{4,})$", re.MULTILINE),
 ]
 
-
 def _detect_heading(text: str) -> Optional[str]:
     """Return the first detected heading in *text*, or None."""
     for pattern in _HEADING_PATTERNS:
         m = pattern.search(text)
         if m:
-            # Group 1 for md/numbered patterns, full match for ALL-CAPS
-            heading = (m.group(1) if m.lastindex else m.group(0)).strip()
-            # Sanity: skip if looks like a sentence fragment (has a verb ending)
-            if len(heading) < 100:
-                return heading
+            # Extract raw string safely
+            try:
+                res = m.group(1) if m.lastindex else m.group(0)
+            except (IndexError, AttributeError):
+                res = None
+            
+            # Check if res is not None before calling .strip()
+            if res is not None:
+                heading = res.strip()
+                # Sanity: skip if looks like a sentence fragment
+                if heading and len(heading) < 100:
+                    return heading
+                    
     return None
-
 
 # ---------------------------------------------------------------------------
 # Source priority helper

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from .config import get_settings
 from .rag.graph import build_teknofest_graph, run_graph
+from .tracing import init_langsmith, is_tracing_enabled
 
 
 class ChatRequest(BaseModel):
@@ -26,6 +27,10 @@ class ChatResponse(BaseModel):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+
+    # Initialise LangSmith tracing BEFORE building the graph so every
+    # LangChain / LangGraph call is captured from the very first request.
+    init_langsmith(settings)
 
     app = FastAPI(title=settings.app_name)
 
@@ -43,8 +48,12 @@ def create_app() -> FastAPI:
     graph = build_teknofest_graph(settings=settings)
 
     @app.get("/health")
-    async def health() -> Dict[str, str]:
-        return {"status": "ok"}
+    async def health() -> Dict[str, Any]:
+        return {
+            "status": "ok",
+            "tracing_enabled": is_tracing_enabled(),
+            "langsmith_project": settings.langsmith_project if is_tracing_enabled() else None,
+        }
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:

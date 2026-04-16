@@ -29,7 +29,7 @@ from typing import List, Set
 
 import httpx
 from bs4 import BeautifulSoup
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from chromadb import PersistentClient
 

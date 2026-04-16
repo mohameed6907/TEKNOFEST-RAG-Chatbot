@@ -23,6 +23,13 @@ from typing import List, Optional
 
 from app.rag.retrievers import RetrievedChunk
 
+try:
+    from langsmith import traceable as _ls_traceable
+    _context_builder_step = _ls_traceable(name="context_builder", run_type="chain")
+except ImportError:  # pragma: no cover
+    def _context_builder_step(fn):  # type: ignore[misc]
+        return fn
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -40,6 +47,7 @@ _OVERLAP_THRESHOLD = 0.80          # Jaccard word-overlap to flag near-duplicate
 # ---------------------------------------------------------------------------
 
 
+@_context_builder_step
 def build_context(
     chunks: List[RetrievedChunk],
     *,

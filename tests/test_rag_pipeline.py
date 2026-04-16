@@ -393,3 +393,110 @@ class TestEmbeddingService:
         bad_settings = get_settings().model_copy(update={"openai_api_key": None})
         with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
             EmbeddingService(bad_settings)
+
+
+# ---------------------------------------------------------------------------
+# 8. LangSmith tracing (unit — no real API calls)
+# ---------------------------------------------------------------------------
+
+
+class TestLangSmithTracing:
+    def _make_tracing_settings(self, *, enabled: bool = True, api_key: str | None = "ls-test-key"):
+        return get_settings().model_copy(update={
+            "langsmith_tracing": enabled,
+            "langsmith_api_key": api_key,
+            "langsmith_project": "test-project",
+        })
+
+    def test_init_disabled_when_flag_false(self):
+        """init_langsmith returns False when tracing flag is off."""
+        import app.tracing as tracing_mod
+        settings = self._make_tracing_settings(enabled=False)
+        # Reset so we can test without previous state polluting
+        saved = tracing_mod._initialized
+        tracing_mod._initialized = False
+        result = tracing_mod.init_langsmith(settings)
+        tracing_mod._initialized = saved
+        assert result is False
+
+    def test_init_disabled_when_no_api_key(self):
+        """init_langsmith returns False when api key is missing."""
+        import app.tracing as tracing_mod
+        settings = self._make_tracing_settings(enabled=True, api_key=None)
+        saved = tracing_mod._initialized
+        tracing_mod._initialized = False
+        result = tracing_mod.init_langsmith(settings)
+        tracing_mod._initialized = saved
+        assert result is False
+
+    def test_init_sets_env_vars(self, monkeypatch):
+        """init_langsmith exports LANGCHAIN_* env vars when enabled."""
+        import os
+        import app.tracing as tracing_mod
+
+        # Ensure a clean slate
+        monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
+        monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
+        monkeypatch.delenv("LANGCHAIN_PROJECT", raising=False)
+        saved_init = tracing_mod._initialized
+        tracing_mod._initialized = False
+
+        settings = self._make_tracing_settings(enabled=True, api_key="ls-test-key")
+        tracing_mod.init_langsmith(settings)
+        tracing_mod._initialized = saved_init
+
+        assert os.environ.get("LANGCHAIN_TRACING_V2") == "true"
+        assert os.environ.get("LANGCHAIN_API_KEY") == "ls-test-key"
+        assert os.environ.get("LANGCHAIN_PROJECT") == "test-project"
+
+
+    def test_is_tracing_enabled_false_by_default(self, monkeypatch):
+        """is_tracing_enabled is False unless env vars are correctly set."""
+        import os
+        import app.tracing as tracing_mod
+        monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
+        monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
+        assert tracing_mod.is_tracing_enabled() is False
+
+    def test_get_run_metadata_structure(self):
+        """get_run_metadata returns the expected keys."""
+        from app.tracing import get_run_metadata
+
+        chunks = [
+            _make_chunk("content", score=0.15, source="doc.pdf"),
+            _make_chunk("more content", score=0.30, source="web.html"),
+        ]
+        meta = get_run_metadata(
+            retrieved_chunks=chunks,
+            selected_chunks=chunks[:1],
+            prompt_preview="Test prompt here",
+            extra={"route": "local"},
+        )
+        assert meta["retrieved_count"] == 2
+        assert meta["selected_count"] == 1
+        assert len(meta["retrieved_sources"]) == 2
+        assert meta["prompt_preview"] == "Test prompt here"
+        assert meta["route"] == "local"
+
+    def test_get_run_metadata_empty(self):
+        """get_run_metadata handles empty chunk lists gracefully."""
+        from app.tracing import get_run_metadata
+
+        meta = get_run_metadata(retrieved_chunks=[], selected_chunks=[])
+        assert meta["retrieved_count"] == 0
+        assert meta["selected_count"] == 0
+        assert meta["retrieved_sources"] == []
+
+    def test_langsmith_settings_in_config(self):
+        """Settings includes all LangSmith fields with correct defaults."""
+        settings = get_settings()
+        assert hasattr(settings, "langsmith_tracing")
+        assert hasattr(settings, "langsmith_api_key")
+        assert hasattr(settings, "langsmith_project")
+        assert hasattr(settings, "langsmith_endpoint")
+        # Project name comparison is case-insensitive — user may set
+        # TEKNOFEST-RAG or teknofest-rag in their .env
+        assert "teknofest" in settings.langsmith_project.lower()
+        assert "smith.langchain.com" in settings.langsmith_endpoint
+
+

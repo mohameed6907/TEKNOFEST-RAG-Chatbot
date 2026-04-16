@@ -20,6 +20,13 @@ from langchain_openai import OpenAIEmbeddings
 
 from app.config import Settings
 
+try:
+    from langsmith import traceable as _traceable
+    _embedding_step = _traceable(name="embedding_step", run_type="embedding")
+except ImportError:  # pragma: no cover
+    def _embedding_step(fn):  # type: ignore[misc]
+        return fn
+
 logger = logging.getLogger(__name__)
 
 # OpenAI embedding API limit (max texts per request)
@@ -87,9 +94,9 @@ class EmbeddingService:
         return vectors
 
     def embed_query(self, text: str) -> List[float]:
-        """Embed a single query string."""
-        result = self._lc_embeddings.embed_query(text.strip() or " ")
-        return result
+        """Embed a single query string — traced as embedding_step in LangSmith."""
+        return _traced_embed_query(self._lc_embeddings, text.strip() or " ")
+
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -110,7 +117,7 @@ class EmbeddingService:
         last_exc: Exception | None = None
         for attempt in range(max_retries):
             try:
-                return self._lc_embeddings.embed_documents(texts)
+                return _traced_embed_documents(self._lc_embeddings, texts)
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
                 wait = base_delay * (2**attempt)
@@ -145,3 +152,23 @@ def get_embedding_service(settings: Settings) -> EmbeddingService:
     if _instance is None:
         _instance = EmbeddingService(settings)
     return _instance
+
+
+# ---------------------------------------------------------------------------
+# Module-level @traceable wrappers (LangSmith span: "embedding_step")
+# ---------------------------------------------------------------------------
+# These are module-level functions (not instance methods) so the @traceable
+# decorator can wrap them normally.  EmbeddingService delegates to them.
+
+@_embedding_step
+def _traced_embed_documents(
+    lc_embeddings, texts: List[str]
+) -> List[List[float]]:
+    """Traced wrapper for batch document embedding."""
+    return lc_embeddings.embed_documents(texts)
+
+
+@_embedding_step
+def _traced_embed_query(lc_embeddings, text: str) -> List[float]:
+    """Traced wrapper for single query embedding."""
+    return lc_embeddings.embed_query(text)

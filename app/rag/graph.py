@@ -36,6 +36,7 @@ from app.rag.retrievers import (
     retrieve_from_tavily,
     retrieve_from_vectorstore,
 )
+from app.tracing import get_run_metadata, is_tracing_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,16 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
         {"role": "system", "content": SYSTEM_PROMPT_BASE},
         {"role": "user", "content": user_content},
     ]
-    res = await llm.ainvoke(messages)
+
+    # Store prompt preview for LangSmith trace metadata
+    state.setdefault("meta", {})["prompt_preview"] = user_content[:500]
+
+    res = await llm.ainvoke(
+        messages,
+        # run_name must go inside config=, NOT as a top-level kwarg to ainvoke().
+        # Passing it top-level causes a TypeError that surfaces as HTTP 500.
+        config={"run_name": "llm_generation"} if is_tracing_enabled() else None,
+    )
     state["answer"] = res.content or ""
 
     # Determine route label from dominant source type
@@ -254,6 +264,7 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
         route = "tavily"
     state["route_taken"] = route
     return state
+
 
 
 # ---- Hallucination guard ----
@@ -286,13 +297,13 @@ def _log_eval(
     selected: List[RetrievedChunk],
     hal_status: str,
 ) -> None:
-    """Fire-and-forget evaluation log write."""
+    """Fire-and-forget evaluation log write + LangSmith metadata injection."""
     try:
         failure_tags = tag_failures(
             retrieved_chunks=retrieved,
             answer=state.get("answer", ""),
             hallucination_status=hal_status,
-            recall=1.0,  # No ground-truth at runtime; set 1.0 to avoid auto-tagging
+            recall=1.0,  # No ground-truth at runtime; avoid auto-tagging
         )
         log_retrieval_event(
             log_path=settings.eval_log_path,
@@ -304,8 +315,34 @@ def _log_eval(
             hallucination_status=hal_status,
             failure_tags=failure_tags,
         )
+
+        # Attach rich metadata to the active LangSmith run so it's visible
+        # in the run metadata panel without any extra API calls.
+        if is_tracing_enabled():
+            try:
+                from langsmith import get_current_run_tree  # lazy import
+                run = get_current_run_tree()
+                if run is not None:
+                    run.add_metadata(
+                        get_run_metadata(
+                            retrieved_chunks=retrieved,
+                            selected_chunks=selected,
+                            prompt_preview=state.get("meta", {}).get("prompt_preview"),
+                            extra={
+                                "route": state.get("route_taken", "unknown"),
+                                "hallucination_status": hal_status,
+                                "failure_tags": failure_tags,
+                                "reranker_used": state.get("meta", {}).get("reranker_used"),
+                                "intent": state.get("intent"),
+                            },
+                        )
+                    )
+            except Exception:  # noqa: BLE001
+                pass  # never let tracing crash the pipeline
+
     except Exception as exc:  # noqa: BLE001
         logger.warning("Eval log failed: %s", exc)
+
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +428,17 @@ def build_teknofest_graph(settings: Settings):
 async def run_graph(graph, question: str) -> Dict[str, Any]:
     """Wrapper used by FastAPI and tests."""
     initial_state: GraphState = {"question": question}
-    final_state = await graph.ainvoke(initial_state)
+
+    # When LangSmith tracing is active, pass a run_name so each query appears
+    # as a named root trace in the LangSmith project.
+    invoke_kwargs: Dict[str, Any] = {}
+    if is_tracing_enabled():
+        invoke_kwargs["config"] = {
+            "run_name": "teknofest-rag-query",
+            "metadata": {"question_preview": question[:120]},
+        }
+
+    final_state = await graph.ainvoke(initial_state, **invoke_kwargs)
     return {
         "answer": final_state.get("answer", ""),
         "sources": [
@@ -405,6 +452,7 @@ async def run_graph(graph, question: str) -> Dict[str, Any]:
         "route_taken": final_state.get("route_taken", "unknown"),
         "meta": final_state.get("meta", {}),
     }
+
 
 
 # ---------------------------------------------------------------------------
