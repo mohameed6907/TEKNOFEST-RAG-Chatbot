@@ -74,3 +74,6 @@ docker-compose.override.yml
 # =========================
 *.sqlite
 *.db
+TEKNOFEST-RAG-Chatbot.code-workspace
+wheels
+RAG/eval_log.jsonl

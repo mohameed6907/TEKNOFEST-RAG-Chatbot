@@ -94,7 +94,7 @@ def get_settings() -> Settings:
     # Proje kökündeki .env dosyasını yükle
     dotenv_path = base_dir / ".env"
     if dotenv_path.exists():
-        load_dotenv(dotenv_path)
+        load_dotenv(dotenv_path, override=True)
 
     return Settings(
         base_dir=base_dir,
