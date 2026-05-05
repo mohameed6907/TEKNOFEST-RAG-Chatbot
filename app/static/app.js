@@ -227,6 +227,14 @@ const App = {
 
             // Populate form
             document.getElementById('llm_provider').value = config.llm_provider;
+            
+            // Render options based on provider
+            UI.updateModelDropdowns(config.llm_provider);
+
+            if (config.llm_model) document.getElementById('llm_model').value = config.llm_model;
+            if (config.llm_hallucination_model) document.getElementById('llm_hallucination_model').value = config.llm_hallucination_model;
+            if (config.llm_tavily_model) document.getElementById('llm_tavily_model').value = config.llm_tavily_model;
+
             document.getElementById('retrieval_top_k').value = config.retrieval_top_k;
             document.getElementById('enable_reranking').checked = config.enable_reranking;
             document.getElementById('rag_confidence_threshold').value = config.rag_confidence_threshold;
@@ -280,6 +288,9 @@ const App = {
         e.preventDefault();
         const payload = {
             llm_provider: document.getElementById('llm_provider').value,
+            llm_model: document.getElementById('llm_model').value,
+            llm_hallucination_model: document.getElementById('llm_hallucination_model').value,
+            llm_tavily_model: document.getElementById('llm_tavily_model').value,
             retrieval_top_k: parseInt(document.getElementById('retrieval_top_k').value),
             enable_reranking: document.getElementById('enable_reranking').checked,
             rag_confidence_threshold: parseFloat(document.getElementById('rag_confidence_threshold').value)
@@ -436,6 +447,52 @@ const UI = {
         } else {
             document.getElementById('admin-btn').classList.add('hidden');
         }
+    },
+
+    updateModelDropdowns(provider) {
+        if (!provider) return;
+        const p = provider.toLowerCase().trim();
+        const options = {
+            'groq': [
+                { id: 'llama-3.3-70b-versatile', label: 'llama-3.3-70b-versatile (Ana Model İçin Tavsiye Edilen)' },
+                { id: 'llama-3.1-8b-instant', label: 'llama-3.1-8b-instant (Hızlı & Tavsiye Edilen)' },
+                { id: 'mixtral-8x7b-32768', label: 'mixtral-8x7b-32768' },
+                { id: 'gemma2-9b-it', label: 'gemma2-9b-it' }
+            ],
+            'openai': [
+                { id: 'gpt-4o-mini', label: 'gpt-4o-mini (Tavsiye Edilen & Fiyat Dostu)' },
+                { id: 'gpt-4o', label: 'gpt-4o (Premium)' }
+            ],
+            'deepseek': [
+                { id: 'deepseek-chat', label: 'deepseek-chat (Tavsiye Edilen)' },
+                { id: 'deepseek-reasoner', label: 'deepseek-reasoner' }
+            ],
+            'kimi': [
+                { id: 'moonshot-v1-8k', label: 'moonshot-v1-8k (Tavsiye Edilen)' },
+                { id: 'moonshot-v1-32k', label: 'moonshot-v1-32k' }
+            ]
+        };
+        const models = options[p] || options['groq'];
+        ['llm_model', 'llm_hallucination_model', 'llm_tavily_model'].forEach(id => {
+            const select = document.getElementById(id);
+            if (!select) return;
+            const currentVal = select.value;
+            select.innerHTML = '';
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.label;
+                select.appendChild(opt);
+            });
+            
+            // Try to keep the previously selected value if it exists in the new list
+            if (models.some(m => m.id === currentVal)) {
+                select.value = currentVal;
+            } else if (models.length > 0) {
+                // Otherwise set to the first one
+                select.value = models[0].id;
+            }
+        });
     },
 
     renderSessionList(sessions) {

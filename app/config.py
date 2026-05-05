@@ -19,7 +19,11 @@ class Settings(BaseModel):
 
     # LLM Provider
     llm_provider: str = Field(default="groq")
-    llm_model: str = Field(default="llama-3.1-70b-versatile")
+    llm_model: str = Field(default="llama-3.3-70b-versatile")
+    llm_hallucination_provider: str | None = Field(default=None)
+    llm_hallucination_model: str | None = Field(default=None)
+    llm_tavily_provider: str | None = Field(default=None)
+    llm_tavily_model: str | None = Field(default=None)
 
     # Provider API keys / base urls
     groq_api_key: str | None = Field(default=None)
@@ -96,18 +100,28 @@ def get_settings() -> Settings:
     if dotenv_path.exists():
         load_dotenv(dotenv_path, override=True)
 
+    # OpenAI SDK reads OPENAI_BASE_URL directly from os.environ.
+    # An empty string causes "UnsupportedProtocol" errors, so remove it.
+    for key in ("OPENAI_BASE_URL",):
+        if os.getenv(key) == "":
+            os.environ.pop(key, None)
+
     return Settings(
         base_dir=base_dir,
         rag_root=rag_root,
         llm_provider=os.getenv("LLM_PROVIDER", "groq"),
         llm_model=os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
+        llm_hallucination_provider=os.getenv("LLM_HALLUCINATION_PROVIDER"),
+        llm_hallucination_model=os.getenv("LLM_HALLUCINATION_MODEL"),
+        llm_tavily_provider=os.getenv("LLM_TAVILY_PROVIDER"),
+        llm_tavily_model=os.getenv("LLM_TAVILY_MODEL"),
         groq_api_key=os.getenv("GROQ_API_KEY"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
         kimi_api_key=os.getenv("KIMI_API_KEY"),
         kimi_base_url=os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1"),
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        openai_base_url=os.getenv("OPENAI_BASE_URL"),
+        openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        openai_base_url=os.getenv("OPENAI_BASE_URL") or None,
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "openai"),
         embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-3-small"),
         tavily_api_key=os.getenv("TAVILY_API_KEY"),

@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <!-- App CSS -->
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body class="dark-mode">
 
@@ -120,11 +120,24 @@
                         <form id="config-form" onsubmit="App.saveConfig(event)">
                             <div class="form-group">
                                 <label>LLM Provider</label>
-                                <select id="llm_provider">
-                                    <option value="groq">Groq (Llama 3)</option>
+                                <select id="llm_provider" onchange="UI.updateModelDropdowns(this.value)">
+                                    <option value="groq">Groq</option>
                                     <option value="openai">OpenAI</option>
                                     <option value="deepseek">DeepSeek</option>
+                                    <option value="kimi">Kimi</option>
                                 </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Ana LLM Modeli (Retrieval)</label>
+                                <select id="llm_model"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Halüsinasyon Kontrol Modeli</label>
+                                <select id="llm_hallucination_model"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Hızlı / Yönlendirme Modeli (Tavily & Niyet)</label>
+                                <select id="llm_tavily_model"></select>
                             </div>
                             <div class="form-group">
                                 <label>Retrieval Top K</label>
@@ -206,6 +219,6 @@
     </div>
 
     <!-- App Logic -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=6"></script>
 </body>
 </html>

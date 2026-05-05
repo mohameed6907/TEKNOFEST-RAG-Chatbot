@@ -19,6 +19,13 @@ settings = get_settings()
 
 class ConfigUpdate(BaseModel):
     llm_provider: str
+    llm_model: str
+    llm_hallucination_provider: str
+    llm_hallucination_model: str
+    llm_tavily_provider: str
+    llm_tavily_model: str
+    embedding_provider: str
+    embedding_model_name: str
     retrieval_top_k: int
     enable_reranking: bool
     rag_confidence_threshold: float
@@ -27,6 +34,13 @@ class ConfigUpdate(BaseModel):
 def get_config(admin: User = Depends(get_admin_user)):
     return {
         "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
+        "llm_hallucination_provider": settings.llm_hallucination_provider or settings.llm_provider,
+        "llm_hallucination_model": settings.llm_hallucination_model or "",
+        "llm_tavily_provider": settings.llm_tavily_provider or settings.llm_provider,
+        "llm_tavily_model": settings.llm_tavily_model or "",
+        "embedding_provider": settings.embedding_provider,
+        "embedding_model_name": settings.embedding_model_name,
         "retrieval_top_k": settings.retrieval_top_k,
         "enable_reranking": settings.reranker_enabled,
         "rag_confidence_threshold": settings.rag_confidence_threshold,
@@ -39,6 +53,13 @@ def update_config(config: ConfigUpdate, admin: User = Depends(get_admin_user)):
     # Simple env update
     updates = {
         "LLM_PROVIDER": config.llm_provider,
+        "LLM_MODEL": config.llm_model,
+        "LLM_HALLUCINATION_PROVIDER": config.llm_hallucination_provider,
+        "LLM_HALLUCINATION_MODEL": config.llm_hallucination_model,
+        "LLM_TAVILY_PROVIDER": config.llm_tavily_provider,
+        "LLM_TAVILY_MODEL": config.llm_tavily_model,
+        "EMBEDDING_PROVIDER": config.embedding_provider,
+        "EMBEDDING_MODEL_NAME": config.embedding_model_name,
         "RETRIEVAL_TOP_K": str(config.retrieval_top_k),
         "ENABLE_RERANKING": "true" if config.enable_reranking else "false",
         "RAG_CONFIDENCE_THRESHOLD": str(config.rag_confidence_threshold)
@@ -50,6 +71,8 @@ def update_config(config: ConfigUpdate, admin: User = Depends(get_admin_user)):
         
         with open(env_path, "w") as f:
             for line in lines:
+                if line.startswith("LLM_CHEAP_MODEL="):
+                    continue
                 written = False
                 for k, v in updates.items():
                     if line.startswith(k + "="):

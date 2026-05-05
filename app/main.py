@@ -59,14 +59,14 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse("index.html", {"request": request, "app_name": settings.app_name})
+        return templates.TemplateResponse(request=request, name="index.html", context={"app_name": settings.app_name})
 
     @app.get("/{full_path:path}", response_class=HTMLResponse)
     async def index_fallback(request: Request, full_path: str) -> HTMLResponse:
         # Avoid intercepting API calls or static files
         if full_path.startswith("api/") or full_path.startswith("static/"):
             raise HTTPException(status_code=404)
-        return templates.TemplateResponse("index.html", {"request": request, "app_name": settings.app_name})
+        return templates.TemplateResponse(request=request, name="index.html", context={"app_name": settings.app_name})
 
     return app
 

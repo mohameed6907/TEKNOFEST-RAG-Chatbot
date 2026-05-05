@@ -69,8 +69,8 @@ class GraphState(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 
-def _build_llm(settings: Settings, temperature: float = 0.2):
-    return get_llm_service(settings).get_chat_model(temperature=temperature)
+def _build_llm(settings: Settings, temperature: float = 0.2, purpose: str = "main"):
+    return get_llm_service(settings).get_chat_model(temperature=temperature, purpose=purpose)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ def _build_llm(settings: Settings, temperature: float = 0.2):
 
 
 async def node_intent_classification(state: GraphState, settings: Settings) -> GraphState:
-    llm = _build_llm(settings, temperature=0.0)
+    llm = _build_llm(settings, temperature=0.0, purpose="tavily")
     prompt = INTENT_CLASSIFICATION_PROMPT.format(question=state["question"])
     res = await llm.ainvoke([{"role": "user", "content": prompt}])
     label_raw = (res.content or "").strip().upper()
@@ -179,7 +179,7 @@ async def node_reranker(state: GraphState, settings: Settings) -> GraphState:
         return state
 
     if settings.reranker_enabled:
-        llm = _build_llm(settings, temperature=0.0)
+        llm = _build_llm(settings, temperature=0.0, purpose="tavily")
         final = await rerank_chunks(
             query=state["question"],
             chunks=retrieved,

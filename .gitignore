@@ -77,3 +77,5 @@ docker-compose.override.yml
 TEKNOFEST-RAG-Chatbot.code-workspace
 wheels
 RAG/eval_log.jsonl
+chat_doc.md
+.venv_win

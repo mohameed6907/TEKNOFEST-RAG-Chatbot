@@ -29,7 +29,7 @@ async def hallucination_check(
     if not context_chunks:
         return {"status": "unknown", "reason": "no_context"}
 
-    llm = get_llm_service(settings).get_chat_model(temperature=0.0)
+    llm = get_llm_service(settings).get_chat_model(temperature=0.0, purpose="hallucination")
 
     source_summaries = summarize_sources_for_check(context_chunks)
     prompt = HALLUCINATION_CHECK_PROMPT.format(
