@@ -25,6 +25,11 @@ class UniversalLLMService:
         elif purpose == "tavily":
             provider = self.settings.llm_tavily_provider or self.settings.llm_provider
             model = self.settings.llm_tavily_model or self.settings.llm_model
+        elif purpose == "rephrase":
+            # Deterministik — temperature=0 (caller tarafından sağlanır)
+            # Ayrı provider tanımlamak isteğe bağlı — varsayılan olarak main kullanılır
+            provider = self.settings.llm_provider
+            model = self.settings.llm_model
         else:
             provider = self.settings.llm_provider
             model = self.settings.llm_model

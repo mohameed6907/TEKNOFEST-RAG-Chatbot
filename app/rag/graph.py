@@ -25,6 +25,7 @@ from app.llm import get_llm_service
 from app.rag.context_builder import build_context
 from app.rag.evaluator import Timer, log_retrieval_event, tag_failures
 from app.rag.hallucination_guard import hallucination_check
+from app.rag.memory import build_rephrase_chain, format_chat_history
 from app.rag.prompts import INTENT_CLASSIFICATION_PROMPT, SYSTEM_PROMPT_BASE
 from app.rag.reranker import rerank_chunks
 from app.rag.retrievers import (
@@ -51,6 +52,7 @@ RouteLiteral = Literal["direct", "local", "site", "tavily"]
 class GraphState(TypedDict, total=False):
     question: str
     chat_history: List[Dict[str, str]]
+    rephrased_question: str          # D.2 — rephrase node çıktısı
     intent: Literal["TEKNOFEST", "DIGER"]
     # All candidates fetched from vector stores
     retrieved_chunks: List[RetrievedChunk]
@@ -95,12 +97,38 @@ def _decide_next_after_intent(state: GraphState) -> str:
     return "local_rag" if state.get("intent") == "TEKNOFEST" else "direct_llm"
 
 
+# ---- Rephrase (D.3) ----
+
+async def node_rephrase(state: GraphState, settings: Settings) -> GraphState:
+    """
+    D.3 — Chat history varsa soruyu bağımsız hale getirir.
+    İlk mesajsa (history yok) orijinal soruyu doğrudan kullanır.
+    """
+    if not state.get("chat_history"):
+        state["rephrased_question"] = state["question"]
+        return state
+
+    llm = _build_llm(settings, temperature=0.0, purpose="rephrase")
+    rephrase_chain = build_rephrase_chain(llm)
+    history_str = format_chat_history(state["chat_history"])
+
+    rephrased = await rephrase_chain.ainvoke({
+        "chat_history": history_str,
+        "question": state["question"],
+    })
+    rephrased = rephrased.strip()
+    state["rephrased_question"] = rephrased
+    state.setdefault("meta", {})["rephrased"] = rephrased != state["question"]
+    return state
+
+
 # ---- Local RAG ----
 
 def node_local_rag(state: GraphState, settings: Settings) -> GraphState:
     vs = build_local_docs_retriever(settings)
+    query = state.get("rephrased_question") or state["question"]
     chunks = retrieve_from_vectorstore(
-        vs, query=state["question"],
+        vs, query=query,
         source_type="local_docs",
         k=settings.retrieval_top_k,
     )
@@ -121,11 +149,11 @@ def _decide_after_local_rag(state: GraphState) -> str:
     has_local = any(
         c.source_type == "local_docs" for c in state.get("retrieved_chunks", [])
     )
-    
-    question = state.get("question", "").lower()
+    # Hem rephrased hem orijinal soruda keyword ara
+    question = (state.get("rephrased_question") or state.get("question", "")).lower()
     keywords = ["bu yıl", "bu sene", "2026", "güncel", "yeni", "this year", "هذه السنة", "هذا العام", "الآن", "حاليا", "current"]
     needs_current = any(kw in question for kw in keywords)
-    
+
     if has_local and not needs_current:
         return "reranker"
     return "teknofest_web"
@@ -135,8 +163,9 @@ def _decide_after_local_rag(state: GraphState) -> str:
 
 def node_teknofest_web(state: GraphState, settings: Settings) -> GraphState:
     vs = build_teknofest_site_retriever(settings)
+    query = state.get("rephrased_question") or state["question"]
     chunks = retrieve_from_vectorstore(
-        vs, query=state["question"],
+        vs, query=query,
         source_type="teknofest_site",
         k=settings.retrieval_top_k,
     )
@@ -163,7 +192,8 @@ def _decide_after_teknofest_site(state: GraphState) -> str:
 def node_tavily_web(state: GraphState, settings: Settings) -> GraphState:
     try:
         tavily_tool = build_tavily_tool(settings)
-        chunks = retrieve_from_tavily(tavily_tool, query=state["question"])
+        query = state.get("rephrased_question") or state["question"]
+        chunks = retrieve_from_tavily(tavily_tool, query=query)
         state.setdefault("retrieved_chunks", []).extend(chunks)
     except RuntimeError as exc:
         logger.warning("Tavily unavailable: %s", exc)
@@ -181,7 +211,7 @@ async def node_reranker(state: GraphState, settings: Settings) -> GraphState:
     if settings.reranker_enabled:
         llm = _build_llm(settings, temperature=0.0, purpose="tavily")
         final = await rerank_chunks(
-            query=state["question"],
+            query=state.get("rephrased_question") or state["question"],
             chunks=retrieved,
             llm=llm,
             final_k=settings.retrieval_final_k,
@@ -219,7 +249,8 @@ async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
     messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}]
     for msg in state.get("chat_history", []):
         messages.append(msg)
-    messages.append({"role": "user", "content": state["question"]})
+    question = state.get("rephrased_question") or state["question"]
+    messages.append({"role": "user", "content": question})
     res = await llm.ainvoke(messages)
     state["answer"] = res.content or ""
     state["route_taken"] = "direct"
@@ -238,8 +269,9 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
         # Fallback: build on the fly
         context_block, _ = build_context(state.get("context_chunks", []))
 
+    question = state.get("rephrased_question") or state["question"]
     user_content = (
-        f"Soru:\n{state['question']}\n\n"
+        f"Soru:\n{question}\n\n"
         "Aşağıda ilgili olabilecek bağlam parçaları verilmiştir. "
         "Bu bağlamları kullanarak, mümkün olduğunca TEKNOFEST odaklı, "
         "kaynaklara dayalı bir cevap üret. Cevabın sonunda, hangi kaynaklardan "
@@ -322,6 +354,9 @@ def _log_eval(
             route=state.get("route_taken", "unknown"),
             hallucination_status=hal_status,
             failure_tags=failure_tags,
+            # D.5 — rephrase observability
+            rephrased_question=state.get("rephrased_question") or None,
+            chat_history_length=len(state.get("chat_history", [])),
         )
 
         # Attach rich metadata to the active LangSmith run so it's visible
@@ -367,6 +402,9 @@ def build_teknofest_graph(settings: Settings):
     async def intent_node(s: GraphState) -> GraphState:
         return await node_intent_classification(s, settings)
 
+    async def rephrase_node(s: GraphState) -> GraphState:          # D.3
+        return await node_rephrase(s, settings)
+
     def local_rag_node(s: GraphState) -> GraphState:
         return node_local_rag(s, settings)
 
@@ -393,6 +431,7 @@ def build_teknofest_graph(settings: Settings):
 
     # ---- Register nodes ----
     workflow.add_node("intent", intent_node)
+    workflow.add_node("rephrase", rephrase_node)                   # D.3
     workflow.add_node("local_rag", local_rag_node)
     workflow.add_node("teknofest_web", teknofest_web_node)
     workflow.add_node("tavily_web", tavily_web_node)
@@ -403,9 +442,10 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_node("hallucination_guard", hallucination_guard_node)
 
     # ---- Edges ----
+    # D.3: intent → rephrase → conditional (local_rag veya direct_llm)
     workflow.set_entry_point("intent")
-
-    workflow.add_conditional_edges("intent", _decide_next_after_intent, {
+    workflow.add_edge("intent", "rephrase")
+    workflow.add_conditional_edges("rephrase", _decide_next_after_intent, {
         "local_rag": "local_rag",
         "direct_llm": "direct_llm",
     })
@@ -435,7 +475,11 @@ def build_teknofest_graph(settings: Settings):
 
 async def run_graph(graph, question: str, chat_history: List[Dict[str, str]] = None) -> Dict[str, Any]:
     """Wrapper used by FastAPI and tests."""
-    initial_state: GraphState = {"question": question, "chat_history": chat_history or []}
+    initial_state: GraphState = {
+        "question": question,
+        "chat_history": chat_history or [],
+        "rephrased_question": "",   # D.2 — node_rephrase tarafından doldurulur
+    }
 
     # When LangSmith tracing is active, pass a run_name so each query appears
     # as a named root trace in the LangSmith project.
