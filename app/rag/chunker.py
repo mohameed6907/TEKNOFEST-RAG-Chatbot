@@ -199,7 +199,7 @@ def chunk_documents(
             chunk.page_content = norm
             enriched.append(chunk)
 
-    return enriched
+    return _filter_meaningful_chunks(enriched)
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +235,32 @@ def _merge_short_chunks(
 
     merged.append(buffer)  # always keep the last
     return merged
+
+
+def _filter_meaningful_chunks(chunks: List[Document]) -> List[Document]:
+    """
+    Boş, çok kısa veya sadece başlık/sayfa numarası olan
+    chunk'ları filtrele.
+    """
+    MINIMUM_CHUNK_CHARS = 150
+    filtered = []
+    
+    for chunk in chunks:
+        content = chunk.page_content.strip()
+        
+        # Çok kısa chunk'ları atla
+        if len(content) < MINIMUM_CHUNK_CHARS:
+            continue
+            
+        # Sadece başlık satırlarından oluşan chunk'ları atla
+        lines = [l.strip() for l in content.split('\n') if l.strip()]
+        total_words = sum(len(l.split()) for l in lines)
+        if total_words < 20:
+            continue
+            
+        filtered.append(chunk)
+        
+    return filtered
 
 
 def _sha256(text: str) -> str:

@@ -10,6 +10,11 @@ from app.config import Settings
 
 
 class LLMService(Protocol):
+    """
+    Kritik uyarı:
+    bind_tools() YALNIZCA purpose="main" LLM'e uygulanabilir.
+    purpose="hallucination" ve purpose="tavily" için asla bind_tools() çağrılmamalıdır.
+    """
     def get_chat_model(self, *, temperature: float = 0.2, purpose: str = "main") -> BaseChatModel:
         ...
 
@@ -30,6 +35,9 @@ class UniversalLLMService:
             # Ayrı provider tanımlamak isteğe bağlı — varsayılan olarak main kullanılır
             provider = self.settings.llm_provider
             model = self.settings.llm_model
+        elif purpose == "reranker":
+            provider = self.settings.llm_reranker_provider or self.settings.llm_provider
+            model = self.settings.llm_reranker_model or self.settings.llm_model
         else:
             provider = self.settings.llm_provider
             model = self.settings.llm_model

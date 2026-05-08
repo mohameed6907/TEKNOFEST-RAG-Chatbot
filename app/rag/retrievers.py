@@ -100,7 +100,7 @@ def build_local_docs_retriever(settings: Settings) -> Chroma:
     return _build_chroma_collection(
         settings=settings,
         path=settings.chroma_local_docs_path,
-        collection_name="local_docs",
+        collection_name=settings.chroma_local_collection,
     )
 
 
@@ -108,19 +108,26 @@ def build_teknofest_site_retriever(settings: Settings) -> Chroma:
     return _build_chroma_collection(
         settings=settings,
         path=settings.chroma_teknofest_site_path,
-        collection_name="teknofest_site",
+        collection_name=settings.chroma_site_collection,
     )
 
 
 def build_tavily_tool(settings: Settings) -> TavilySearchResults:
     if not settings.tavily_api_key:
         raise RuntimeError("TAVILY_API_KEY is not set")
+    
+    kwargs = {"api_key": settings.tavily_api_key, "max_results": 5}
+    
+    if getattr(settings, "tavily_use_domain_filter", False) and getattr(settings, "tavily_trusted_domains", None):
+        kwargs["include_domains"] = settings.tavily_trusted_domains
+        kwargs["max_results"] = 8  # Use more results when filtering by domain
+        
     try:
         # New langchain-tavily package
-        return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)  # type: ignore[call-arg]
+        return TavilySearchResults(**kwargs)  # type: ignore[call-arg]
     except TypeError:
         # Older langchain-community signature
-        return TavilySearchResults(api_key=settings.tavily_api_key, max_results=5)
+        return TavilySearchResults(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -198,27 +205,101 @@ def retrieve_from_tavily(
 
 
 # ---------------------------------------------------------------------------
+# A.3 — Startup collection health check
+# ---------------------------------------------------------------------------
+
+
+def verify_collections(settings: Settings) -> dict:
+    """
+    Startup sırasında her iki Chroma collection'ının sağlığını doğrular.
+    Chunk sayısı, cosine metric durumu ve embedding boyutunu raporlar.
+    """
+    results = {}
+    collection_map = [
+        ("local_docs", settings.chroma_local_docs_path, settings.chroma_local_collection),
+        ("teknofest_site", settings.chroma_teknofest_site_path, settings.chroma_site_collection),
+    ]
+    for name, path, col_name in collection_map:
+        try:
+            client = PersistentClient(path=str(path))
+            cols = client.list_collections()
+            found = [c for c in cols if c.name == col_name]
+            if not found:
+                results[name] = {
+                    "status": "missing",
+                    "chunks": 0,
+                    "collections": [c.name for c in cols],
+                    "cosine": False,
+                }
+                continue
+            col = found[0]
+            count = col.count()
+            meta = col.metadata or {}
+            cosine_ok = meta.get("hnsw:space") == "cosine"
+            results[name] = {
+                "status": "ok",
+                "chunks": count,
+                "cosine": cosine_ok,
+                "embedding_model": meta.get("embedding_model", "unknown"),
+                "collections": [c.name for c in cols],
+            }
+        except Exception as e:  # noqa: BLE001
+            results[name] = {"status": "error", "error": str(e)}
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Confidence estimation
 # ---------------------------------------------------------------------------
 
 
-def estimate_chunk_confidence(chunks: List[RetrievedChunk]) -> float:
+def estimate_chunk_confidence(chunks: List[RetrievedChunk], settings: Optional[Settings] = None) -> float:
     """
     Convert distance-based Chroma scores to a confidence value in [0, 1].
 
-    Chroma returns L2 or cosine distances (lower = more similar).
-    We invert and clamp to produce a confidence score.
+    Uses Top-N average and a hard floor for high-quality single chunks
+    to ensure Local RAG is prioritized when a highly relevant chunk exists.
     """
     if not chunks:
         return 0.0
+
+    # Default parameters if settings not provided
+    hard_floor_score = settings.rag_hard_floor_score if settings else 0.45
+    hard_floor_confidence = settings.rag_hard_floor_confidence if settings else 0.56
+    top_n = settings.rag_top_n_for_confidence if settings else 3
+
     values = []
+    best_similarity = 0.0
+
     for chunk in chunks:
         if chunk.score is None:
             continue
         # Score is distance: 0 = identical, 2 = opposite direction
-        # Map distance 0→1 to confidence 1→0
-        confidence = max(0.0, min(1.0, 1.0 - float(chunk.score)))
-        values.append(confidence)
+        # Map distance 0→2 to confidence 1→0
+        similarity = max(0.0, min(1.0, 1.0 - (float(chunk.score) / 2.0)))
+        values.append(similarity)
+        
+        if similarity > best_similarity:
+            best_similarity = similarity
+
     if not values:
         return 0.0
-    return sum(values) / len(values)
+
+    # --- Hard Floor Check ---
+    if best_similarity >= hard_floor_score:
+        return max(hard_floor_confidence, best_similarity)
+
+    # Sort values descending (highest similarity first)
+    sorted_values = sorted(values, reverse=True)
+
+    # --- Q10 Expert Advice: Gap Rule ---
+    # Accept top candidate if the gap between top1 and top2 is significant
+    if len(sorted_values) >= 2:
+        gap = sorted_values[0] - sorted_values[1]
+        if gap >= 0.15:
+            return max(hard_floor_confidence, best_similarity)
+
+    # --- Top-N Average ---
+    top_n_values = sorted_values[:top_n]
+
+    return sum(top_n_values) / len(top_n_values)

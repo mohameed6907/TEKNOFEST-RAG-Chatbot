@@ -49,12 +49,51 @@ def create_app() -> FastAPI:
     app.include_router(chat.router)
     app.include_router(admin.router)
 
+    # A.3 — Vector DB startup health check
+    @app.on_event("startup")
+    async def startup_vectordb_check():
+        import logging as _logging
+        from app.rag.retrievers import verify_collections
+        _log = _logging.getLogger("startup")
+        health = verify_collections(settings)
+        for name, info in health.items():
+            status = info.get("status", "?")
+            if status == "ok":
+                cosine_flag = "cosine=YES" if info.get("cosine") else "cosine=NO (WARNING: L2 distance!)"
+                _log.info(
+                    "[VectorDB] '%s': %d chunks | %s | model=%s",
+                    name, info["chunks"], cosine_flag, info.get("embedding_model", "?")
+                )
+                if not info.get("cosine"):
+                    _log.warning(
+                        "[VectorDB] '%s' cosine metric eksik! "
+                        "Lutfen recreate_cosine_collections.py calistirin.",
+                        name
+                    )
+                if info["chunks"] == 0:
+                    _log.warning(
+                        "[VectorDB] '%s' BOS! "
+                        "Ingestion scripti calistirilmamis olabilir.",
+                        name
+                    )
+            elif status == "missing":
+                _log.error(
+                    "[VectorDB] '%s': collection bulunamadi. "
+                    "Ingestion scripti calistirilmamis.",
+                    name
+                )
+            else:
+                _log.error("[VectorDB] '%s': HATA -- %s", name, info.get("error"))
+
     @app.get("/health")
     async def health() -> Dict[str, Any]:
+        from app.rag.retrievers import verify_collections
+        vdb_health = verify_collections(settings)
         return {
             "status": "ok",
             "tracing_enabled": is_tracing_enabled(),
             "langsmith_project": settings.langsmith_project if is_tracing_enabled() else None,
+            "vector_db": vdb_health,
         }
 
     @app.get("/", response_class=HTMLResponse)

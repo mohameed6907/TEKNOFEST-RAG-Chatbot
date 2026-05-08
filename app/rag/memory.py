@@ -18,8 +18,22 @@ REPHRASE_PROMPT = ChatPromptTemplate.from_messages([
         "system",
         """Sen bir soru yeniden yazma asistanısın.
 Kullanıcının yeni sorusunu ve geçmiş konuşmayı alarak,
-soruyu önceki bağlama ihtiyaç duymadan anlaşılabilecek şekilde yeniden yaz.
-Sadece yeniden yazılmış soruyu döndür, açıklama ekleme.""",
+soruyu önceki bağlama ihtiyaç duymadan TAMAMEN ANLAŞILABİLECEK şekilde yeniden yaz.
+
+KRITIK KURALLAR:
+1. "Bu kategori", "benim seçtiğim", "önceki seçim", "daha önce belirttiğim" gibi REFERENSLARı 
+   geçmişten AÇIKÇA çıkararak yerine yaz
+2. TEKNOFEST kategorisi adlarını tamamıyla yaz
+3. Özet yapmadan, tüm temel bilgiyi yeniden yapılandır
+4. Sadece yeniden yazılmış soruyu döndür, açıklama ekleme
+
+ÖRNEK:
+Geçmiş: 
+  Kullanıcı: ben sağlıkta yapay zeka alanında yarışacağım
+  Asistan: Sağlıkta yapay zeka kategorisinde...
+
+Yeni soru: bu kategoride nelere dikkat etmeliyim
+Çıkış: Sağlıkta yapay zeka kategorisinde nelere dikkat etmeliyim""",
     ),
     (
         "human",
@@ -28,7 +42,7 @@ Sadece yeniden yazılmış soruyu döndür, açıklama ekleme.""",
 
 Yeni soru: {question}
 
-Bağımsız soru:""",
+Bağımsız ve açık soru:""",
     ),
 ])
 

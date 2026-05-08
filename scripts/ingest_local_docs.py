@@ -29,8 +29,11 @@ from pathlib import Path
 from typing import List, Set
 
 from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader, TextLoader
-from langchain_community.vectorstores import Chroma
 from chromadb import PersistentClient
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma  # type: ignore
 
 # Ensure project root is on the path when run as a script
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -111,7 +114,7 @@ def main() -> None:
 
     # Load existing content hashes to skip duplicates
     existing_hashes = get_existing_hashes(
-        settings.chroma_local_docs_path, "local_docs"
+        settings.chroma_local_docs_path, settings.chroma_local_collection
     )
     logger.info("Existing Chroma hashes: %d", len(existing_hashes))
 
@@ -172,15 +175,31 @@ def main() -> None:
 
     logger.info("Upserting %d new chunks into Chroma …", len(all_chunks))
 
+    # A.1 — Collection'ın cosine metric ile var olduğunu garantile
+    _chroma_client = PersistentClient(path=str(settings.chroma_local_docs_path))
+    _existing_cols = [c.name for c in _chroma_client.list_collections()]
+    if settings.chroma_local_collection not in _existing_cols:
+        logger.info("Creating collection '%s' with cosine metric...", settings.chroma_local_collection)
+        _chroma_client.create_collection(
+            name=settings.chroma_local_collection,
+            metadata={
+                "hnsw:space": "cosine",
+                "embedding_model": settings.embedding_model_name,
+                "description": "TEKNOFEST local documents",
+            }
+        )
+    else:
+        logger.info("Collection '%s' already exists — upserting into it.", settings.chroma_local_collection)
+
     Chroma.from_documents(
         documents=all_chunks,
         embedding=lc_embeddings,
         persist_directory=str(settings.chroma_local_docs_path),
-        collection_name="local_docs",
+        collection_name=settings.chroma_local_collection,
     )
 
     logger.info(
-        "✓ Chroma 'local_docs' updated — %d new chunks added, %d duplicates skipped.",
+        "Chroma 'local_docs' updated — %d new chunks added, %d duplicates skipped.",
         len(all_chunks),
         skipped_dups,
     )

@@ -118,27 +118,84 @@
                     <div class="admin-card">
                         <h4>Sistem Konfigürasyonu</h4>
                         <form id="config-form" onsubmit="App.saveConfig(event)">
+                            <!-- Ana LLM -->
                             <div class="form-group">
-                                <label>LLM Provider</label>
-                                <select id="llm_provider" onchange="UI.updateModelDropdowns(this.value)">
-                                    <option value="groq">Groq</option>
+                                <label>Ana LLM Provider</label>
+                                <select id="llm_provider" onchange="UI.updateModelDropdown('llm_model', this.value)">
                                     <option value="openai">OpenAI</option>
+                                    <option value="groq">Groq</option>
                                     <option value="deepseek">DeepSeek</option>
                                     <option value="kimi">Kimi</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="together">Together AI</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Ana LLM Modeli (Retrieval)</label>
+                                <label>Ana LLM Modeli</label>
                                 <select id="llm_model"></select>
                             </div>
+                            <!-- Halüsinasyon LLM -->
                             <div class="form-group">
-                                <label>Halüsinasyon Kontrol Modeli</label>
+                                <label>Halüsinasyon Provider</label>
+                                <select id="llm_hallucination_provider" onchange="UI.updateModelDropdown('llm_hallucination_model', this.value)">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="together">Together AI</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Halüsinasyon Modeli</label>
                                 <select id="llm_hallucination_model"></select>
                             </div>
+                            <!-- Tavily / Intent LLM -->
                             <div class="form-group">
-                                <label>Hızlı / Yönlendirme Modeli (Tavily & Niyet)</label>
+                                <label>Intent/Tavily Provider</label>
+                                <select id="llm_tavily_provider" onchange="UI.updateModelDropdown('llm_tavily_model', this.value)">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="together">Together AI</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Intent/Tavily Modeli</label>
                                 <select id="llm_tavily_model"></select>
                             </div>
+                            <!-- Reranker LLM -->
+                            <div class="form-group">
+                                <label>Reranker Provider</label>
+                                <select id="llm_reranker_provider" onchange="UI.updateModelDropdown('llm_reranker_model', this.value)">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="together">Together AI</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Reranker Modeli</label>
+                                <select id="llm_reranker_model"></select>
+                            </div>
+                            <!-- Embedding -->
+                            <div class="form-group">
+                                <label>Embedding Provider</label>
+                                <select id="embedding_provider">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="huggingface">HuggingFace</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Embedding Modeli</label>
+                                <select id="embedding_model_name">
+                                    <option value="text-embedding-3-small">text-embedding-3-small</option>
+                                    <option value="text-embedding-3-large">text-embedding-3-large</option>
+                                    <option value="text-embedding-ada-002">text-embedding-ada-002</option>
+                                </select>
+                            </div>
+                            <!-- RAG Parameters -->
                             <div class="form-group">
                                 <label>Retrieval Top K</label>
                                 <input type="number" id="retrieval_top_k" min="1" max="20">
@@ -219,6 +276,6 @@
     </div>
 
     <!-- App Logic -->
-    <script src="/static/app.js?v=6"></script>
+    <script src="/static/app.js?v=7"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import List
 from datetime import datetime
@@ -24,6 +25,8 @@ class ConfigUpdate(BaseModel):
     llm_hallucination_model: str
     llm_tavily_provider: str
     llm_tavily_model: str
+    llm_reranker_provider: str
+    llm_reranker_model: str
     embedding_provider: str
     embedding_model_name: str
     retrieval_top_k: int
@@ -39,6 +42,8 @@ def get_config(admin: User = Depends(get_admin_user)):
         "llm_hallucination_model": settings.llm_hallucination_model or "",
         "llm_tavily_provider": settings.llm_tavily_provider or settings.llm_provider,
         "llm_tavily_model": settings.llm_tavily_model or "",
+        "llm_reranker_provider": settings.llm_reranker_provider or settings.llm_provider,
+        "llm_reranker_model": settings.llm_reranker_model or "",
         "embedding_provider": settings.embedding_provider,
         "embedding_model_name": settings.embedding_model_name,
         "retrieval_top_k": settings.retrieval_top_k,
@@ -58,6 +63,8 @@ def update_config(config: ConfigUpdate, admin: User = Depends(get_admin_user)):
         "LLM_HALLUCINATION_MODEL": config.llm_hallucination_model,
         "LLM_TAVILY_PROVIDER": config.llm_tavily_provider,
         "LLM_TAVILY_MODEL": config.llm_tavily_model,
+        "LLM_RERANKER_PROVIDER": config.llm_reranker_provider,
+        "LLM_RERANKER_MODEL": config.llm_reranker_model,
         "EMBEDDING_PROVIDER": config.embedding_provider,
         "EMBEDDING_MODEL_NAME": config.embedding_model_name,
         "RETRIEVAL_TOP_K": str(config.retrieval_top_k),
@@ -104,7 +111,7 @@ def trigger_ingestion(admin: User = Depends(get_admin_user)):
         # Run natively in background or block
         # For simplicity in this demo, we run synchronously
         result = subprocess.run(
-            ["python", str(script_path)],
+            [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
             cwd=str(settings.base_dir)
