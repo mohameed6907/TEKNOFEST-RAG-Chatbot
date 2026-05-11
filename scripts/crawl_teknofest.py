@@ -1,45 +1,102 @@
+"""
+crawl_teknofest.py
+==================
+Web crawler and ingestion pipeline for teknofest.org.
+
+Changes from previous version
+------------------------------
+- Fixed broken `from langchain.text_splitter import …` import
+- Uses shared EmbeddingService (centralized, no inline embedding logic)
+- Uses shared text_cleaner + chunker pipeline
+- Adds crawl_source (URL) and crawled_at timestamp metadata per chunk
+- Deduplicates on re-crawl via content_hash
+- Configurable crawl depth via MAX_DEPTH
+
+Run
+---
+::
+
+    python scripts/crawl_teknofest.py
+"""
 from __future__ import annotations
 
+import logging
+import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import List, Set
 
 import httpx
 from bs4 import BeautifulSoup
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
+from chromadb import PersistentClient
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma  # type: ignore
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import get_settings
+from app.rag.chunker import chunk_documents
+from app.rag.embedding_service import get_embedding_service
+from app.rag.text_cleaner import clean_text
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
+logger = logging.getLogger("crawl_teknofest")
+
+# ---------------------------------------------------------------------------
+# Crawler configuration
+# ---------------------------------------------------------------------------
 
 START_URL = "https://teknofest.org/tr/"
-MAX_DEPTH = 2
+MAX_DEPTH = 1            # Depth 1 = sadece ana sayfa + direkt linkler (~30-50 sayfa)
+MAX_PAGES = 50           # En fazla 50 HTML sayfası — rate limit ve maliyet optimizasyonu
 TIMEOUT = 15.0
-SLEEP_BETWEEN_REQUESTS = 0.6
+SLEEP_BETWEEN_REQUESTS = 0.8
+
+
+_BINARY_EXTENSIONS = (
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
+    ".pdf", ".doc", ".docx", ".pptx", ".xlsx", ".zip", ".rar",
+    ".mp4", ".mp3", ".avi", ".mov", ".woff", ".woff2", ".ttf",
+)
 
 
 def is_same_domain(url: str) -> bool:
     return "teknofest.org" in url
 
 
+def is_binary_url(url: str) -> bool:
+    """Resim, PDF ve binary dosya URL'lerini atla — sadece HTML sayfaları crawla."""
+    lower = url.lower().split("?")[0]
+    return any(lower.endswith(ext) for ext in _BINARY_EXTENSIONS)
+
+
 def normalize_url(url: str) -> str:
     return url.split("#", 1)[0].rstrip("/")
 
 
+# ---------------------------------------------------------------------------
+# Crawl
+# ---------------------------------------------------------------------------
+
+
 def crawl() -> List[Document]:
-    settings = get_settings()
+    """BFS crawl of teknofest.org up to MAX_DEPTH. Returns LangChain Documents."""
     client = httpx.Client(timeout=TIMEOUT, follow_redirects=True)
     visited: Set[str] = set()
     queue = deque([(START_URL, 0)])
-
     docs: List[Document] = []
 
     while queue:
         url, depth = queue.popleft()
         url = normalize_url(url)
+
         if url in visited or depth > MAX_DEPTH:
             continue
         visited.add(url)
@@ -47,87 +104,188 @@ def crawl() -> List[Document]:
         if not is_same_domain(url):
             continue
 
+        # is_binary_url check: binary URL'leri crawla ama içerik ekleme
+        if is_binary_url(url):
+            continue
+
+        # Sayfa limiti
+        if len(docs) >= MAX_PAGES:
+            logger.info("MAX_PAGES=%d limitine ulasildi, crawl durduruluyor.", MAX_PAGES)
+            break
+
         try:
-            print(f"[{depth}] GET {url}")
+            logger.info("[depth=%d] GET %s", depth, url)
             resp = client.get(url)
             if resp.status_code != 200:
-                print("  -> status", resp.status_code)
+                logger.warning("  → status %d", resp.status_code)
                 continue
-        except Exception as exc:
-            print("  -> error", exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("  → request error: %s", exc)
             continue
 
         soup = BeautifulSoup(resp.text, "lxml")
-        title = soup.title.string.strip() if soup.title and soup.title.string else url
+        page_title = (
+            soup.title.string.strip()
+            if soup.title and soup.title.string
+            else url
+        )
 
-        # basic text extraction
-        for script in soup(["script", "style", "noscript"]):
-            script.extract()
-        text = " ".join(soup.get_text(separator=" ").split())
+        # Remove script / style / noscript noise
+        for tag in soup(["script", "style", "noscript", "nav", "footer", "header"]):
+            tag.extract()
 
-        if text:
+        raw_text = " ".join(soup.get_text(separator=" ").split())
+
+        if raw_text.strip():
             docs.append(
                 Document(
-                    page_content=text,
+                    page_content=raw_text,
                     metadata={
-                        "url": url,
-                        "title": title,
                         "source": url,
+                        "url": url,
+                        "title": page_title,
+                        "document_type": "web",
                     },
                 )
             )
 
-        # queue links
+        # Enqueue links
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if href.startswith("mailto:") or href.startswith("tel:"):
+            if href.startswith(("mailto:", "tel:", "javascript:")):
                 continue
             if href.startswith("/"):
                 next_url = "https://teknofest.org" + href
-            else:
+            elif href.startswith("http"):
                 next_url = href
+            else:
+                continue
             next_url = normalize_url(next_url)
-            if is_same_domain(next_url) and next_url not in visited:
+            # Binary/resim URL'leri atla — sadece HTML sayfaları crawla
+            if is_same_domain(next_url) and next_url not in visited and not is_binary_url(next_url):
                 queue.append((next_url, depth + 1))
 
         time.sleep(SLEEP_BETWEEN_REQUESTS)
 
     client.close()
+    logger.info("Crawl complete — %d pages collected.", len(docs))
     return docs
+
+
+# ---------------------------------------------------------------------------
+# Deduplication helper (same as in ingest_local_docs.py)
+# ---------------------------------------------------------------------------
+
+
+def get_existing_hashes(chroma_path: Path, collection_name: str) -> Set[str]:
+    try:
+        client = PersistentClient(path=str(chroma_path))
+        col = client.get_collection(collection_name)
+        result = col.get(include=["metadatas"])
+        hashes: Set[str] = set()
+        for meta in result.get("metadatas") or []:
+            h = (meta or {}).get("content_hash")
+            if h:
+                hashes.add(h)
+        return hashes
+    except Exception:
+        return set()
+
+
+# ---------------------------------------------------------------------------
+# Build index
+# ---------------------------------------------------------------------------
 
 
 def build_index(docs: List[Document]) -> None:
     settings = get_settings()
     settings.chroma_teknofest_site_path.mkdir(parents=True, exist_ok=True)
 
-    embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model_name)
+    embedding_svc = get_embedding_service(settings)
+    lc_embeddings = embedding_svc.get_langchain_embeddings()
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1200,
-        chunk_overlap=250,
+    existing_hashes = get_existing_hashes(
+        settings.chroma_teknofest_site_path, settings.chroma_site_collection
     )
-    split_docs = splitter.split_documents(docs)
+    logger.info("Existing Chroma hashes: %d", len(existing_hashes))
 
-    print(f"Split {len(docs)} docs into {len(split_docs)} chunks.")
+    all_new_chunks = []
+    total_skipped = 0
+
+    for doc in docs:
+        url = doc.metadata.get("url", "unknown")
+        chunks = chunk_documents(
+            docs=[doc],
+            doc_type="web",
+            source_type="teknofest",
+            min_chunk_size=settings.chunk_min_size,
+            target_chunk_size=settings.chunk_target_size,
+            max_chunk_size=settings.chunk_max_size,
+            chunk_overlap=settings.chunk_overlap,
+            crawl_source=url,
+        )
+
+        new_chunks = []
+        for chunk in chunks:
+            h = chunk.metadata.get("content_hash", "")
+            if h and h in existing_hashes:
+                total_skipped += 1
+                continue
+            existing_hashes.add(h)
+            new_chunks.append(chunk)
+
+        all_new_chunks.extend(new_chunks)
+
+    if not all_new_chunks:
+        logger.info(
+            "All %d chunks already indexed. Nothing to upsert.", total_skipped
+        )
+        return
+
+    logger.info("Upserting %d new chunks into Chroma …", len(all_new_chunks))
+
+    # A.1 — cosine metric ile collection garantisi
+    _chroma_client = PersistentClient(path=str(settings.chroma_teknofest_site_path))
+    _existing_cols = [c.name for c in _chroma_client.list_collections()]
+    if settings.chroma_site_collection not in _existing_cols:
+        logger.info("Creating collection '%s' with cosine metric...", settings.chroma_site_collection)
+        _chroma_client.create_collection(
+            name=settings.chroma_site_collection,
+            metadata={
+                "hnsw:space": "cosine",
+                "embedding_model": settings.embedding_model_name,
+                "description": "TEKNOFEST official website",
+            }
+        )
+    else:
+        logger.info("Collection '%s' already exists — upserting.", settings.chroma_site_collection)
 
     Chroma.from_documents(
-        documents=split_docs,
-        embedding=embeddings,
+        documents=all_new_chunks,
+        embedding=lc_embeddings,
         persist_directory=str(settings.chroma_teknofest_site_path),
-        collection_name="teknofest_site",
+        collection_name=settings.chroma_site_collection,
     )
 
-    print("Chroma index for teknofest_site updated at", settings.chroma_teknofest_site_path)
+    logger.info(
+        "Chroma 'teknofest_site' updated — %d new, %d skipped (dup).",
+        len(all_new_chunks),
+        total_skipped,
+    )
 
 
-def main():
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
     docs = crawl()
     if not docs:
-        print("No documents crawled.")
+        logger.warning("No documents crawled.")
         return
     build_index(docs)
 
 
 if __name__ == "__main__":
     main()
-

@@ -1,0 +1,52 @@
+[
+  {
+    "query": "TEKNOFEST ne zaman başladı?",
+    "expected_keywords": ["2018", "ilk", "başladı", "kuruluş"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST hangi kategorilerde yarışma düzenliyor?",
+    "expected_keywords": ["insansız", "roket", "yapay zeka", "savaşan", "yarışma"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST'e nasıl başvuru yapılır?",
+    "expected_keywords": ["başvuru", "kayıt", "form", "online"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST'in amacı nedir?",
+    "expected_keywords": ["genç", "teknoloji", "inovasyon", "Türkiye"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST hangi şehirlerde düzenlendi?",
+    "expected_keywords": ["İstanbul", "Ankara", "Azerbaycan", "şehir"],
+    "failure_tags": []
+  },
+  {
+    "query": "İnsansız hava aracı yarışması koşulları nelerdir?",
+    "expected_keywords": ["İHA", "insansız", "uçuş", "otonom"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST ödülleri nelerdir?",
+    "expected_keywords": ["ödül", "nakit", "kupa", "birinci"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST roket yarışması teknik gereksinimleri nelerdir?",
+    "expected_keywords": ["roket", "motor", "yükseklik", "mesafe"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST'te takım oluşturma kuralları neler?",
+    "expected_keywords": ["takım", "üye", "danışman", "öğrenci"],
+    "failure_tags": []
+  },
+  {
+    "query": "TEKNOFEST yapay zeka kategorisi hakkında bilgi ver",
+    "expected_keywords": ["yapay zeka", "makine öğrenmesi", "model", "veri"],
+    "failure_tags": []
+  }
+]
