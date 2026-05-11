@@ -168,6 +168,18 @@ def retrieve_from_vectorstore(
         )
 
     logger.debug("Retrieved %d chunks from %s (k=%d)", len(chunks), source_type, k)
+    
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            run.add_outputs({
+                "chunk_count": len(chunks),
+                "sources": [c.source for c in chunks]
+            })
+    except Exception:
+        pass
+
     return chunks
 
 
@@ -224,6 +236,18 @@ def retrieve_from_tavily(
                 source_type="tavily",
             )
         )
+        
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            run.add_outputs({
+                "query_used": query,
+                "result_count": len(chunks)
+            })
+    except Exception:
+        pass
+
     return chunks
 
 

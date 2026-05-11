@@ -556,6 +556,17 @@ def node_freshness_gate(state: GraphState, settings: Settings) -> GraphState:
 
     decision = "fetch_live" if (is_sensitive or has_stale) else "serve_directly"
 
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            run.add_outputs({
+                "decision": decision,
+                "reason": f"Sensitive: {is_sensitive}, Stale chunks: {len(stale_chunks)}"
+            })
+    except Exception:
+        pass
+
     state.setdefault("meta", {})["freshness_decision"] = decision
     state.setdefault("meta", {})["freshness_stale_sources"] = [
         c.source for c in stale_chunks
@@ -572,25 +583,15 @@ def _decide_after_freshness_gate(state: GraphState) -> str:
     return state.get("meta", {}).get("freshness_decision", "serve_directly")
 
 
-# ---- Live fetch node (3-step chain: page → Tavily → grounded LLM) ----
+# ---- Live fetch nodes ----
 
-async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
-    """
-    Strict 3-step live-data chain for time-sensitive queries.
-
-    Step 1 — fetch_teknofest_competition_page (direct HTML scrape)
-    Step 2 — Tavily search with site:teknofest.org filter (only if Step 1 empty)
-    Step 3 — Grounded LLM synthesis; admits uncertainty if Steps 1-2 fail
-
-    Never returns numbers from parametric LLM memory.
-    """
+@traceable(run_type="tool", name="live_page_fetch", metadata={"pipeline_stage": "live_fetch"})
+async def node_live_page_fetch(state: GraphState, settings: Settings) -> GraphState:
     from app.agent.tools import fetch_teknofest_competition_page
-
+    
     question = state.get("rephrased_question") or state["question"]
     lower_q = question.lower()
-
-    # ------------------------------------------------------------------ Step 1
-    # Derive competition slug from question heuristically
+    
     slug_map = {
         "insansiz kara": "insansiz-kara-araci-yarismasi",
         "insansız kara": "insansiz-kara-araci-yarismasi",
@@ -609,17 +610,18 @@ async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
         "model uydu": "model-uydu-yarismasi",
         "roket": "model-roket-yarismasi",
     }
-    slug: str | None = None
+    slug = None
     for keyword, candidate_slug in slug_map.items():
         if keyword in lower_q:
             slug = candidate_slug
             break
 
-    live_page_content: str = ""
+    live_page_content = ""
+    url_attempted = ""
     if slug:
+        url_attempted = f"https://www.teknofest.org/tr/yarismalar/{slug}/"
         try:
             live_page_content = fetch_teknofest_competition_page.invoke({"competition_slug": slug})
-            # Treat fetch errors / very-short responses as empty
             if live_page_content.startswith("[FETCH ERROR]") or len(live_page_content) < 200:
                 live_page_content = ""
                 logger.warning("Live fetch Step 1 returned error/empty for slug '%s'", slug)
@@ -632,32 +634,72 @@ async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
     state.setdefault("meta", {})["live_fetch_step1_slug"] = slug
     state.setdefault("meta", {})["live_fetch_step1_ok"] = bool(live_page_content)
 
-    # ------------------------------------------------------------------ Step 2
-    tavily_content: str = ""
-    if not live_page_content:
-        try:
-            tavily_tool = build_tavily_tool(settings)
-            tavily_query = f"{question} 2026 site:teknofest.org"
-            chunks = retrieve_from_tavily(tavily_tool, query=tavily_query)
-            if not chunks:
-                # Second attempt without site filter
-                chunks = retrieve_from_tavily(tavily_tool, query=f"TEKNOFEST 2026 {question}")
-            if chunks:
-                context_str, _ = build_context(chunks, max_total_chars=4_000)
-                tavily_content = context_str
-                # Attach chunks for source display
-                state.setdefault("retrieved_chunks", []).extend(chunks)
-                state["context_chunks"] = chunks
-                logger.info("Live fetch Step 2 (Tavily) OK: %d chunks", len(chunks))
-        except Exception as exc:
-            logger.warning("Live fetch Step 2 (Tavily) failed: %s", exc)
+    if live_page_content and slug:
+        from app.rag.retrievers import RetrievedChunk
+        live_chunk = RetrievedChunk(
+            content=live_page_content[:10000],
+            metadata={
+                "url": url_attempted,
+                "source": url_attempted,
+                "title": "TEKNOFEST Yarışma Sayfası (Canlı)",
+                "document_type": "web_live",
+                "source_priority": 0,
+                "fetched_at": __import__('datetime').datetime.now().isoformat(),
+            },
+            score=1.0,
+            source_type="teknofest_site",
+        )
+        state["context_chunks"] = [live_chunk]
+        state.setdefault("meta", {})["live_fetch_source"] = "teknofest.org (live)"
+    
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            run.add_outputs({
+                "url_attempted": url_attempted,
+                "success": bool(live_page_content),
+                "content_length": len(live_page_content)
+            })
+    except Exception:
+        pass
+
+    return state
+
+def _decide_after_live_page_fetch(state: GraphState) -> str:
+    if state.get("meta", {}).get("live_fetch_step1_ok"):
+        return "live_answer_synthesizer"
+    return "live_tavily_fallback"
+
+@traceable(run_type="tool", name="live_tavily_fallback", metadata={"pipeline_stage": "live_fetch"})
+async def node_live_tavily_fallback(state: GraphState, settings: Settings) -> GraphState:
+    question = state.get("rephrased_question") or state["question"]
+    tavily_content = ""
+    try:
+        tavily_tool = build_tavily_tool(settings)
+        tavily_query = f"{question} 2026 site:teknofest.org"
+        chunks = retrieve_from_tavily(tavily_tool, query=tavily_query)
+        if not chunks:
+            chunks = retrieve_from_tavily(tavily_tool, query=f"TEKNOFEST 2026 {question}")
+        if chunks:
+            context_str, _ = build_context(chunks, max_total_chars=4_000)
+            tavily_content = context_str
+            state.setdefault("retrieved_chunks", []).extend(chunks)
+            state["context_chunks"] = chunks
+            state.setdefault("meta", {})["live_fetch_source"] = "tavily"
+            logger.info("Live fetch Step 2 (Tavily) OK: %d chunks", len(chunks))
+    except Exception as exc:
+        logger.warning("Live fetch Step 2 (Tavily) failed: %s", exc)
 
     state.setdefault("meta", {})["live_fetch_step2_ok"] = bool(tavily_content)
+    return state
 
-    # ------------------------------------------------------------------ Step 3
-    # Build context for the grounded LLM from whichever step succeeded
-    combined_context = live_page_content or tavily_content
-
+@traceable(run_type="llm", name="live_answer_synthesizer", metadata={"pipeline_stage": "response_generation"})
+async def node_live_answer_synthesizer(state: GraphState, settings: Settings) -> GraphState:
+    question = state.get("rephrased_question") or state["question"]
+    chunks = state.get("context_chunks", [])
+    combined_context, _ = build_context(chunks, max_total_chars=10_000)
+    
     llm = _build_llm(settings, temperature=0.1, purpose="main")
 
     if combined_context:
@@ -677,7 +719,6 @@ async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
             "Yalnızca yukarıdaki canlı veriye dayanarak cevapla."
         )
     else:
-        # Steps 1 & 2 both failed — honest uncertainty
         sys_prompt = (
             PERSONALITY_PREFIX + "\n\n"
             "Sen TEKNOFEST bilgi asistanısın.\n"
@@ -703,24 +744,18 @@ async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
 
     state["answer"] = answer
     state["route_taken"] = "live_fetch"
-
-    # If Step 1 succeeded, add a synthetic chunk so sources display correctly
-    if live_page_content and slug:
-        from app.rag.retrievers import RetrievedChunk
-        live_chunk = RetrievedChunk(
-            content=live_page_content[:500],
-            metadata={
-                "url": f"https://www.teknofest.org/tr/yarismalar/{slug}/",
-                "source": f"https://www.teknofest.org/tr/yarismalar/{slug}/",
-                "title": "TEKNOFEST Yarışma Sayfası (Canlı)",
-                "document_type": "web_live",
-                "source_priority": 0,
-                "fetched_at": __import__('datetime').datetime.now().isoformat(),
-            },
-            score=1.0,
-            source_type="teknofest_site",
-        )
-        state["context_chunks"] = [live_chunk]
+    
+    source_label = state.get("meta", {}).get("live_fetch_source", "none")
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            run.add_outputs({
+                "source_label": source_label,
+                "final_answer": answer
+            })
+    except Exception:
+        pass
 
     return state
 
@@ -1047,8 +1082,14 @@ def build_teknofest_graph(settings: Settings):
     def freshness_gate_node(s: GraphState) -> GraphState:
         return node_freshness_gate(s, settings)
 
-    async def live_fetch_node(s: GraphState) -> GraphState:
-        return await node_live_fetch(s, settings)
+    async def live_page_fetch_node(s: GraphState) -> GraphState:
+        return await node_live_page_fetch(s, settings)
+        
+    async def live_tavily_fallback_node(s: GraphState) -> GraphState:
+        return await node_live_tavily_fallback(s, settings)
+        
+    async def live_answer_synthesizer_node(s: GraphState) -> GraphState:
+        return await node_live_answer_synthesizer(s, settings)
 
     # ---- Register nodes ----
     workflow.add_node("intent", intent_node)
@@ -1059,7 +1100,9 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_node("reranker", reranker_node)
     workflow.add_node("context_builder", context_builder_node)
     workflow.add_node("freshness_gate", freshness_gate_node)       # NEW
-    workflow.add_node("live_fetch", live_fetch_node)               # NEW
+    workflow.add_node("live_page_fetch", live_page_fetch_node)
+    workflow.add_node("live_tavily_fallback", live_tavily_fallback_node)
+    workflow.add_node("live_answer_synthesizer", live_answer_synthesizer_node)
     workflow.add_node("direct_llm", direct_llm_node)
     workflow.add_node("kisisel_llm", kisisel_llm_node)
     workflow.add_node("llm_knowledge", llm_knowledge_node)
@@ -1093,9 +1136,15 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_edge("context_builder", "freshness_gate")         # CHANGED
     workflow.add_conditional_edges("freshness_gate", _decide_after_freshness_gate, {
         "serve_directly": "answer_synthesizer",
-        "fetch_live": "live_fetch",
+        "fetch_live": "live_page_fetch",
     })
-    workflow.add_edge("live_fetch", "hallucination_guard")         # NEW edge
+    
+    workflow.add_conditional_edges("live_page_fetch", _decide_after_live_page_fetch, {
+        "live_answer_synthesizer": "live_answer_synthesizer",
+        "live_tavily_fallback": "live_tavily_fallback",
+    })
+    workflow.add_edge("live_tavily_fallback", "live_answer_synthesizer")
+    workflow.add_edge("live_answer_synthesizer", "hallucination_guard")
     workflow.add_edge("answer_synthesizer", "hallucination_guard")
     workflow.add_conditional_edges("hallucination_guard", _decide_after_hallucination_guard, {
         "llm_knowledge": "llm_knowledge",
