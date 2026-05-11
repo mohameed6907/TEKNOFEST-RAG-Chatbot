@@ -5,7 +5,7 @@ import httpx, json, sys, os
 if os.getenv("OPENAI_BASE_URL") == "":
     del os.environ["OPENAI_BASE_URL"]
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:8010"
 
 # 1. Guest login
 r = httpx.post(f"{BASE}/api/auth/guest")

@@ -69,12 +69,12 @@ altına kaydedilecektir.
 ## Uygulamayı Çalıştırma
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --port 8010 --reload
 ```
 
 Ardından tarayıcıdan:
 
-- `http://127.0.0.1:8000/` adresine giderek tek sayfalık chatbot arayüzünü kullanabilirsiniz.
+- `http://127.0.0.1:8010/` adresine giderek tek sayfalık chatbot arayüzünü kullanabilirsiniz.
 
 ## Testler
 

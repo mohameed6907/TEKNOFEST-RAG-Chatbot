@@ -27,12 +27,7 @@ except ImportError:  # fallback for older installs
 from app.config import Settings
 from app.rag.embedding_service import get_embedding_service
 
-try:
-    from langsmith import traceable as _ls_traceable
-    _retrieval_step = _ls_traceable(name="retrieval_step", run_type="retriever")
-except ImportError:  # pragma: no cover
-    def _retrieval_step(fn):  # type: ignore[misc]
-        return fn
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +130,14 @@ def build_tavily_tool(settings: Settings) -> TavilySearchResults:
 # ---------------------------------------------------------------------------
 
 
-@_retrieval_step
+@traceable(
+    run_type="retriever",
+    name="vectordb_retrieval",
+    metadata={
+        "pipeline_stage": "retrieval",
+        "source": "chromadb"
+    }
+)
 def retrieve_from_vectorstore(
     vs: Chroma,
     query: str,
@@ -169,20 +171,41 @@ def retrieve_from_vectorstore(
     return chunks
 
 
-@_retrieval_step
+@traceable(
+    run_type="tool",
+    name="tavily_search",
+    metadata={"pipeline_stage": "live_fetch"}
+)
 def retrieve_from_tavily(
     tool: TavilySearchResults,
     query: str,
 ) -> List[RetrievedChunk]:
     """Retrieve from Tavily web search."""
+    TRUSTED_DOMAINS = ["teknofest.org", "t3vakfi.org", "trthaber.com", "aa.com.tr"]
+    
     try:
-        raw_results = tool.invoke({"query": query})
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Tavily retrieval failed: %s", exc)
-        return []
+        raw_results = tool.invoke({"query": query, "include_domains": TRUSTED_DOMAINS})
+    except Exception:
+        domain_filter = " OR ".join([f"site:{d}" for d in TRUSTED_DOMAINS])
+        try:
+            raw_results = tool.invoke(f"{query} ({domain_filter})")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Tavily retrieval failed: %s", exc)
+            return []
 
     chunks: List[RetrievedChunk] = []
     items = raw_results.get("results", []) if isinstance(raw_results, dict) else raw_results
+    
+    def domain_rank(url: str) -> int:
+        for i, domain in enumerate(TRUSTED_DOMAINS):
+            if domain in url:
+                return i
+        return 99
+
+    items.sort(key=lambda r: domain_rank(r.get("url", "")))
+    trusted_items = [r for r in items if domain_rank(r.get("url", "")) < 99]
+    items = trusted_items if trusted_items else items
+    
     for item in items:
         content = item.get("content") or item.get("snippet") or ""
         if not content.strip():

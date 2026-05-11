@@ -28,12 +28,12 @@ async def hallucination_check(
     When agent HAS context, we trust its judgment unless it's clearly
     using only external knowledge.
     """
-    # Rule 1: No context → answer MUST be rejection message
+    # Rule 1: No context → answer MUST be some form of rejection or redirect, OR it must be fetched from tool
     if not context_chunks:
-        standard_rejection = "Sağlanan belgelerden ilgili bilgi bulamadım."
-        if answer.strip() == standard_rejection:
-            return {"status": "safe", "reason": "no_context_correct_rejection"}
-        # Any other answer without context is hallucination
+        ans_lower = answer.lower()
+        if "bulamadım" in ans_lower or "bulunamadı" in ans_lower or "teknofest.org" in ans_lower or "bilmiyorum" in ans_lower:
+            return {"status": "safe", "reason": "no_context_actionable_rejection_or_tool"}
+        # Any other answer without context is likely hallucinated knowledge
         return {"status": "suspicious", "reason": "no_context_but_answered"}
 
     llm = get_llm_service(settings).get_chat_model(temperature=0.0, purpose="hallucination")

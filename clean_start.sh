@@ -1,8 +1,8 @@
 #!/bin/bash
-# Kill any processes listening on port 8000
-PID=$(netstat -tlnp | grep ':8000' | awk '{print $7}' | cut -d'/' -f1)
+# Kill any processes listening on port 8010
+PID=$(netstat -tlnp | grep ':8010' | awk '{print $7}' | cut -d'/' -f1)
 if [ ! -z "$PID" ]; then
-    echo "Killing process on 8000: $PID"
+    echo "Killing process on 8010: $PID"
     kill -9 $PID
 fi
 pkill -9 -f uvicorn
@@ -15,5 +15,5 @@ sleep 2
 unset OPENAI_BASE_URL
 cd /data
 rm -f /tmp/uvicorn.log
-nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8010 > /tmp/uvicorn.log 2>&1 &
 echo "Uvicorn started."

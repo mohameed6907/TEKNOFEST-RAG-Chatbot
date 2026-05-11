@@ -9,6 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Verify tracing is active on startup
+import langsmith
+print(f"[LangSmith] Tracing active: {os.getenv('LANGCHAIN_TRACING_V2')}")
+print(f"[LangSmith] Project: {os.getenv('LANGCHAIN_PROJECT')}")
+
 from .config import get_settings
 from .rag.graph import build_teknofest_graph, run_graph
 from .tracing import init_langsmith, is_tracing_enabled

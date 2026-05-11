@@ -16,13 +16,16 @@ LLM'lere asla bind_tools() çağrılmaz.
 from __future__ import annotations
 
 import logging
+import re
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langsmith import traceable
 
 from app.agent.tools import (
     get_current_teknofest_news,
     get_festival_location_info,
     get_teknofest_deadline_info,
+    fetch_teknofest_competition_page,
 )
 from app.llm import get_llm_service
 
@@ -32,6 +35,7 @@ TOOLS = [
     get_teknofest_deadline_info,
     get_current_teknofest_news,
     get_festival_location_info,
+    fetch_teknofest_competition_page,
 ]
 TOOL_MAP = {t.name: t for t in TOOLS}
 
@@ -47,23 +51,35 @@ def _build_agent_system_prompt() -> str:
 
 Bugünün tarihi: {current_date}
 
-KATIŞTI RAG KURALLAR - BU KURALLARI KESINLIKLE TAŞIMALIN:
+ÖNEMLİ KURAL: Kullanıcı spesifik bir yarışmanın ödüllerini, kazananlarını, tarihlerini veya kurallarını soruyorsa, bağlamda (context) eski veya yeni bir cevap görsen BİLE, ASLA doğrudan cevap verme. MUTLAKA ÖNCE `fetch_teknofest_competition_page` aracını kullanarak o yarışmanın güncel web sayfasını çek ve cevabı oradan ver. Aracın argümanı yarışmanın slug'ı olmalıdır (örnek: 'insansiz-kara-araci-yarismasi').
 
-1. YALNIZCA sağlanan bağlamı kullan. Genel bilgiye ASLA güvenme.
-2. ASLA harici bilgi veya web bilgisi kullanma.
-3. ASLA bilgi uydurma, tahmin etme veya çıkarım yapma.
-4. ASLA boşlukları doldurma veya bağlamda olmayan bilgiyle cevapla.
-5. Her zaman Türkçe cevapla.
-6. Her zaman bağlamdan kaynaklarını belirt.
+KATIŞTI RAG KURALLAR - BU KURALLARI KESİNLİKLE UYGULA:
 
-Bağlam boş veya yetersizse:
-→ MUTLAKA şu şekilde cevapla: "Sağlanan belgelerden ilgili bilgi bulamadım."
+1. YALNIZCA sağlanan bağlamı kullan (bağlamda web aramalarından veya araçlardan gelen güncel bilgiler olabilir, bunları çekinmeden kullan).
+2. ASLA bilgi uydurma, tahmin etme veya rakam üretme.
+3. Bağlamda olmayan bir bilgiyi kendin üretme. Eğer bağlamda sorunun cevabı (örneğin ödül miktarı) yoksa, açıkça bilmediğini belirt.
+4. Her zaman Türkçe cevapla.
+5. Her zaman bağlamdan kaynaklarını belirt.
+
+YASAK İFADELER - BU İFADELERİ ASLA KULLANMA:
+- "Daha fazla bilgi için [X sitesini] ziyaret edebilirsin/edebilirsiniz"
+- "Resmi web sitesine bakmanı öneririm"
+- "[URL] adresinden ulaşabilirsin"
+- "teknofest.org adresini kontrol edebilirsin"
+- "resmi kaynakları incelemenizi tavsiye ederim"
+- Cevap sonuna dış kaynak linki veya site yönlendirmesi ekleme
+
+KURAL: Sen zaten o kaynaklara erişiyorsun. Kullanıcıyı dışarı yönlendirmek yerine, bilgi eksikse fallback zincirini çalıştır (Site Crawl → Tavily → Grounded LLM). Cevabın içinde hiçbir zaman dış site yönlendirmesi olmasın. Eğer bilgi bulunamıyorsa "Bu konuda elimde yeterli bilgi bulunmuyor" de, dış siteye yönlendirme.
+
+Bağlam boş veya tamamen yetersizse:
+→ Açıkça bilgi bulamadığını belirt. Kullanıcıyı dış siteye yönlendirmek yerine, araçları (tools) kullanarak bilgiyi bulmaya çalış.
 
 Bağlam kısmiysa:
 → YALNIZCA desteklenen kısımları cevapla.
 → Bağlamdan cevaplayamadığın kısımları açıkça belirt."""
 
 
+@traceable(run_type="llm", name="generate_response")
 async def run_agent_node(
     question: str,
     context_str: str,
@@ -105,24 +121,35 @@ async def run_agent_node(
 
     # Kullanıcı sorusu + RAG bağlamı
     user_prompt = (
-        f"SAĞLANAN BAĞLAM (YALNIZCA bunu kullan):\n{context_str}\n\n"
+        f"SAĞLANAN BAĞLAM:\n{context_str}\n\n"
         f"Kullanıcı sorusu: {question}\n\n"
-        "KATIŞTI: Cevabı YALNIZCA yukarıdaki bağlamdan ver. "
-        "Genel bilgi KULLANMA. "
-        "Bağlam boş veya yetersizse şu cümleyi yanıt ver: 'Sağlanan belgelerden ilgili bilgi bulamadım.'"
+        "Eğer bilgi yetersizse veya spesifik bir yarışma detayı isteniyorsa uygun araçları (tools) kullan.\n"
+        "HATIRLATMA: Cevabında kullanıcıyı dış siteye yönlendirme, site linki verme veya 'ziyaret edin' gibi ifadeler kullanma."
     )
     messages.append(HumanMessage(content=user_prompt))
 
+    lower_q = question.lower()
+    needs_competition_tool = any(k in lower_q for k in [
+        "ödül", "odul", "kazanan", "birinci", "ikinci", "üçüncü", "sonuç", "şampiyon", "kim oldu", "kim kazandı", "kimler"
+    ])
+
     for iteration in range(MAX_ITERATIONS):
         try:
-            response: AIMessage = await llm_with_tools.ainvoke(messages)
+            # Sadece ilk iterasyonda, spesifik yarışma sorusu varsa aracı zorla
+            if iteration == 0 and needs_competition_tool:
+                llm_to_use = llm.bind_tools(TOOLS, tool_choice="fetch_teknofest_competition_page")
+                logger.info("Zorunlu araç çağrısı aktif: fetch_teknofest_competition_page")
+            else:
+                llm_to_use = llm_with_tools
+
+            response: AIMessage = await llm_to_use.ainvoke(messages)
         except Exception as exc:  # noqa: BLE001
             logger.error("Agent LLM çağrısı başarısız (iter %d): %s", iteration, exc)
-            return "Şu an cevap üretemiyorum. Lütfen teknofest.org adresini ziyaret edin."
+            return "Şu an cevap üretiminde teknik bir aksaklık oluştu. Sorunu giderirken aynı soruyu biraz daha kısa yazarak tekrar deneyebilirsin."
 
         # Tool çağrısı yok → final cevap
         if not getattr(response, "tool_calls", None):
-            return response.content or ""
+            return _strip_redirect_phrases(response.content or "")
 
         # Tool'ları çalıştır
         messages.append(response)
@@ -155,6 +182,41 @@ async def run_agent_node(
     logger.warning("Agent max_iterations=%d'e ulaştı", MAX_ITERATIONS)
     try:
         final: AIMessage = await llm_with_tools.ainvoke(messages)
-        return final.content or "Yeterli bilgiye ulaşılamadı. Lütfen teknofest.org adresini ziyaret edin."
+        return _strip_redirect_phrases(final.content or "Bu soruyu mevcut bağlamla netleştiremedim. İstersen kategori veya yıl bilgisini ekleyerek tekrar sor; daha nokta atışı cevaplayayım.")
     except Exception:  # noqa: BLE001
-        return "Yeterli bilgiye ulaşılamadı. Lütfen teknofest.org adresini ziyaret edin."
+        return "Bu soruyu mevcut bağlamla netleştiremedim. İstersen kategori veya yıl bilgisini ekleyerek tekrar sor; daha nokta atışı cevaplayayım."
+
+
+# ---------------------------------------------------------------------------
+# Post-processing: Strip redirect phrases from LLM output
+# ---------------------------------------------------------------------------
+
+_REDIRECT_PATTERNS = [
+    # "Daha fazla bilgi için ... ziyaret edebilirsin/edebilirsiniz"
+    r"[Dd]aha fazla bilgi için[^.!\n]*(?:ziyaret|bak|kontrol|incele|ulaş)[^.!\n]*[.!]?",
+    # "Resmi web sitesini/sayfasını ziyaret edebilirsin"
+    r"[Rr]esmi[^.!\n]*(?:site|sayfa|kaynak)[^.!\n]*(?:ziyaret|bak|kontrol|incele|ulaş)[^.!\n]*[.!]?",
+    # "teknofest.org adresinden/adresini ..."
+    r"[Tt]eknofest\.org[^.!\n]*(?:adres|kontrol|ziyaret|bak|incele|ulaş)[^.!\n]*[.!]?",
+    # "... adresinden ulaşabilirsin"
+    r"[^.!\n]*adresinden[^.!\n]*ulaşabilir[^.!\n]*[.!]?",
+    # "... sitesini kontrol etmenizi öneririm"
+    r"[^.!\n]*sitesini[^.!\n]*(?:kontrol|ziyaret|incele)[^.!\n]*(?:öneririm|tavsiye)[^.!\n]*[.!]?",
+    # "... sayfasını ziyaret ..."
+    r"[^.!\n]*sayfasını[^.!\n]*ziyaret[^.!\n]*[.!]?",
+    # Standalone URL references like "teknofest.org/tr/yarismalar"
+    r"(?:^|\n)[^.!\n]*teknofest\.org/[^\s]*[^.!\n]*[.!]?",
+]
+
+
+def _strip_redirect_phrases(text: str) -> str:
+    """Remove any redirect-to-external-site phrases from the answer."""
+    if not text:
+        return text
+    cleaned = text
+    for pattern in _REDIRECT_PATTERNS:
+        cleaned = re.sub(pattern, "", cleaned)
+    # Clean up extra whitespace / newlines left behind
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = cleaned.strip()
+    return cleaned if cleaned else text  # never return empty

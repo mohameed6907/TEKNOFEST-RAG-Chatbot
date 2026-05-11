@@ -1,0 +1,91 @@
+{
+  "session_id": "0fa193e8-89a6-4c01-8b2a-175267fb02a0",
+  "answer": "İnsansız Kara Aracı Yarışması'nın 2026 yılı için ödülleri henüz açıklanmamış. Ancak yarışma kapsamında takımların geliştirdikleri araçlarla zorlu parkurlarda belirlenen senaryoları başarıyla tamamlamaları bekleniyor. Bu süreçte ödüller ve detaylar yarışma takvimiyle birlikte duyurulacaktır. \n\nHeyecan dolu bir yarışma olacak, katılacak olan tüm takımlara başarılar diliyorum! Unutmayın, her biriniz bu süreçte çok değerli deneyimler kazanacaksınız. 🌟",
+  "sources": [
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://www.teknofest.org/tr/yarismalar/insansiz-kara-araci-yarismasi/",
+        "title": "İnsansız Kara Aracı Yarışması | TEKNOFEST",
+        "source": "https://www.teknofest.org/tr/yarismalar/insansiz-kara-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **İnsansız Kara Aracı Yarışması | TEKNOFEST**. # **Yarışma Hakkında**. İnsansız Kara Araçları yarışmasında amaç ateş desteği vazifesi de dahil olmak üzere İKA’ların harp koşullarında başından geçece",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://teknofest.org/tr/yarismalar/uluslararasi-insansiz-hava-araci-yarismasi/",
+        "title": "Uluslararası İnsansız Hava Aracı Yarışması | TEKNOFEST",
+        "source": "https://teknofest.org/tr/yarismalar/uluslararasi-insansiz-hava-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **Uluslararası İnsansız Hava Aracı Yarışması | TEKNOFEST**. TEKNOFEST Teknoloji yarışmaları kapsamında Uluslararası İnsansız Hava Araçları Yarışması düzenlenmektedir. Yarışmanın amacı, öğrencileri İ",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://tubitak.gov.tr/tr/haber/uluslararasi-regeneron-isef-bilim-ve-muhendislik-yarismasina-ogrencilerimiz-damga-vurdu",
+        "title": "Uluslararası Regeneron ISEF Bilim ve Mühendislik Yarışmasına ...",
+        "source": "https://tubitak.gov.tr/tr/haber/uluslararasi-regeneron-isef-bilim-ve-muhendislik-yarismasina-ogrencilerimiz-damga-vurdu",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "King Fahd University of Petroleum and Minerals (KFUPM) özel ödülünü Kocaeli Fen Lisesinden Ahmet Kağan Altay “Dört Ayaklı İnsansız Kara Aracı",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://www.teknofest.org/tr/yarismalar/tarimsal-insansiz-kara-araci-yarismasi/",
+        "title": "Tarımsal İnsansız Kara Aracı Yarışması | TEKNOFEST",
+        "source": "https://www.teknofest.org/tr/yarismalar/tarimsal-insansiz-kara-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "Tarımsal İnsansız Kara Aracı Yarışması | TEKNOFEST. Yarışma Hakkında; Yarışma Takvimi; Yarışma Ödülleri; Derece Listesi; Rapor Şablonları; Yarışma Dokümanları",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://bilimteknik.tubitak.gov.tr/hayallerin-yukseldigi-yer-teknofest-2025-istanbul/",
+        "title": "Hayallerin Yükseldiği Yer TEKNOFEST 2025 İstanbul - Bilim ve Teknik",
+        "source": "https://bilimteknik.tubitak.gov.tr/hayallerin-yukseldigi-yer-teknofest-2025-istanbul/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "İnsansız Kara Aracı Yarışması ile katılımcılardan araç dinamiği, mekanik üretim, elektronik tasarım, yazılım geliştirme gibi farklı",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://teknofest.org/tr/yarismalar/savasan-iha-yarismasi/",
+        "title": "Savaşan İHA Yarışması | TEKNOFEST",
+        "source": "https://teknofest.org/tr/yarismalar/savasan-iha-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **Savaşan İHA Yarışması | TEKNOFEST**. ## Yarışma Hakkında. Yarışmaya katılan her bir İHA, yarışma esnasında aynı anda havada olacak ve birbirleri ile mücadele edecektir. Yarışma “Savaşan İHA” ve “K",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    }
+  ],
+  "route_taken": "llm_knowledge"
+}

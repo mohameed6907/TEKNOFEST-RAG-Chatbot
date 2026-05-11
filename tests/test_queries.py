@@ -3,7 +3,7 @@ import asyncio, json, httpx, sys, io
 # Force UTF-8 output on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:8010"
 
 async def main():
     async with httpx.AsyncClient(timeout=120) as c:

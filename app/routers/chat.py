@@ -23,26 +23,7 @@ graph = build_teknofest_graph(settings=settings)
 
 
 def get_langfuse_handler(settings, session_id: str, user_id: str):
-    """
-    E.3 — Langfuse v4 LangchainCallbackHandler oluşturur.
-    langfuse_enabled=False ise None döner.
-    v4: Secret/host env var'lardan okunur (LANGFUSE_SECRET_KEY, LANGFUSE_HOST).
-    """
-    if not settings.langfuse_enabled:
-        return None
-    try:
-        from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler  # v4+
-        # v4: public_key parametresi opsiyonel; env var'lardan otomatik okunur.
-        handler = LangfuseCallbackHandler(
-            public_key=settings.langfuse_public_key,
-        )
-        return handler
-    except ImportError:
-        logger.warning("langfuse paketi kurulu değil — 'pip install langfuse' çalıştırın.")
-        return None
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Langfuse handler oluşturulamadı: %s", exc)
-        return None
+    return None
 
 class ChatRequest(BaseModel):
     message: str
@@ -146,13 +127,8 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
     if len(chat_history) > 10:
         chat_history = chat_history[-10:]
 
-    # E.3 — Langfuse callback (LangSmith ile birlikte çalışabilir)
+    # No longer using langfuse callback.
     callbacks = []
-    langfuse_handler = get_langfuse_handler(
-        settings, session_id=session_id, user_id=str(current_user.id)
-    )
-    if langfuse_handler:
-        callbacks.append(langfuse_handler)
 
     # Run LangGraph with history, callbacks, and session metadata
     try:

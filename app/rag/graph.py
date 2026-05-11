@@ -15,6 +15,7 @@ GraphState.  Settings are injected via closure at graph construction time.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
 
@@ -39,16 +40,139 @@ from app.rag.retrievers import (
     retrieve_from_vectorstore,
 )
 from app.tracing import get_run_metadata, is_tracing_enabled
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
-RouteLiteral = Literal["direct", "local", "site", "tavily", "llm_knowledge", "kisisel"]
+RouteLiteral = Literal["direct", "local", "site", "tavily", "llm_knowledge", "kisisel", "live_fetch"]
 
 PERSONALITY_PREFIX = """Sen Türkiye'nin en büyük teknoloji festivali TEKNOFEST'in yardımcı chatbot'usun.
-Kullanıcılarla samimi, sıcak ve destekleyici bir dille konuşursun.
+Kullanıcılarla samimi, sıcak ve destekleyici bir dilde konuşursun.
 Sanki yarışmacıların en büyük destekçisiymiş gibi hissettirirsin.
 Cevaplarını her zaman Türkçe verirsin.
 Özellikle kategori veya takım sorularında yarışmacıların heyecanını paylaş."""
+
+# ---------------------------------------------------------------------------
+# Freshness gate — keywords and stale-source markers
+# ---------------------------------------------------------------------------
+
+# Query keywords that signal time-sensitive data (prizes, deadlines, rankings)
+FRESHNESS_SENSITIVE_KEYWORDS: tuple[str, ...] = (
+    "ödül", "odul", "para ödülü", "para odulu",
+    "birinci", "ikinci", "üçüncü", "ucuncu",
+    "kazanan", "kazananlar", "şampiyon", "sampiyon",
+    "derece", "dereceye",
+    "başvuru tarihi", "basvuru tarihi", "son başvuru", "son basvuru",
+    "deadline", "tarih",
+    "katılımcı sayısı", "katilimci sayisi", "kota",
+    "winner", "prize", "ranking",
+)
+
+# Source name substrings that indicate a potentially stale local document
+STALE_SOURCE_MARKERS: tuple[str, ...] = (
+    "2021", "2022", "2023", "2024",
+    "Ansiklopedi", "ansiklopedi",
+    "Kapsamli_Rehber", "Kapsamli Rehber",
+    "TEKNOFEST_Kapsamli",
+    "Bilgi_Veri", "Bilgi Veri",
+    "genel.docx",
+)
+
+TAVILY_TRIGGER_KEYWORDS = (
+    "bu yıl",
+    "bu sene",
+    "2023",
+    "2024",
+    "2025",
+    "2026",
+    "2027",
+    "geçen yıl",
+    "gecen yil",
+    "güncel",
+    "yeni",
+    "current",
+    "current year",
+    "this year",
+    "ödül",
+    "odul",
+    "ödül miktarı",
+    "odul miktari",
+    "ödül farkı",
+    "odul farki",
+    "para ödülü",
+    "ucret",
+    "ücret",
+    "fiyat",
+    "başvuru ücreti",
+    "basvuru ucreti",
+    "kayıt ücreti",
+    "kayit ucreti",
+    "ücret farkı",
+    "ucret farki",
+    "son başvuru",
+    "son basvuru",
+    "başvuru tarihi",
+    "basvuru tarihi",
+    "deadline",
+    "tarih",
+    "ne kadar",
+    "maliyet",
+    "kazanan",
+    "kazananlar",
+    "birinci",
+    "ikinci",
+    "üçüncü",
+    "ucuncu",
+    "derece",
+    "şampiyon",
+    "sampiyon",
+    "sonuç",
+    "sonuc",
+    "kim oldu",
+    "kim kazandı",
+    "kim kazandi",
+    "birincileri"
+)
+
+CATEGORY_ALIASES = (
+    ("sağlıkta yapay zeka", "Sağlıkta Yapay Zeka"),
+    ("saglikta yapay zeka", "Sağlıkta Yapay Zeka"),
+    ("insansız hava aracı", "İnsansız Hava Aracı"),
+    ("insansiz hava araci", "İnsansız Hava Aracı"),
+    ("iha", "İnsansız Hava Aracı"),
+    ("insansız kara aracı", "İnsansız Kara Aracı"),
+    ("insansiz kara araci", "İnsansız Kara Aracı"),
+    ("insansiz kara", "İnsansız Kara Aracı"),
+    ("robotik", "Robotik"),
+    ("robolig", "Robolig"),
+    ("yazılım", "Yazılım"),
+    ("yazilim", "Yazılım"),
+    ("drone", "Drone"),
+)
+
+USER_OWNERSHIP_HINTS = (
+    "ben",
+    "kategorim",
+    "alanim",
+    "alanım",
+    "yaris",
+    "yarış",
+    "hazirlaniyorum",
+    "hazırlanıyorum",
+    "sectim",
+    "seçtim",
+)
+
+DISALLOWED_REDIRECT_PHRASES = (
+    "resmi kaynak",
+    "resmi site",
+    "web sitesini kontrol",
+    "adresini kontrol",
+    "teknofest.org",
+    "kontrol etmeni oneririm",
+    "kontrol etmenizi oneririm",
+    "ziyaret edin",
+)
 
 
 
@@ -81,6 +205,72 @@ class GraphState(TypedDict, total=False):
 
 def _build_llm(settings: Settings, temperature: float = 0.2, purpose: str = "main"):
     return get_llm_service(settings).get_chat_model(temperature=temperature, purpose=purpose)
+
+
+def _needs_tavily(question: str) -> bool:
+    normalized = normalize_turkish_query(question or "").lower()
+    return any(keyword in normalized for keyword in TAVILY_TRIGGER_KEYWORDS)
+
+
+def _find_categories_in_text(text: str) -> List[str]:
+    normalized_text = normalize_turkish_query(text or "").lower()
+    matches: List[tuple[int, int, str]] = []
+    for alias, category_name in CATEGORY_ALIASES:
+        pattern = rf"(?<!\w){re.escape(alias)}(?!\w)"
+        for m in re.finditer(pattern, normalized_text):
+            matches.append((m.start(), -len(alias), category_name))
+
+    matches.sort(key=lambda item: (item[0], item[1]))
+
+    ordered_categories: List[str] = []
+    seen = set()
+    for _, _, category_name in matches:
+        if category_name in seen:
+            continue
+        seen.add(category_name)
+        ordered_categories.append(category_name)
+    return ordered_categories
+
+
+def _looks_like_user_category_statement(text: str) -> bool:
+    normalized = normalize_turkish_query(text or "").lower()
+    return any(hint in normalized for hint in USER_OWNERSHIP_HINTS)
+
+
+def _contains_disallowed_redirect(answer: str) -> bool:
+    normalized = normalize_turkish_query(answer or "").lower()
+    return any(phrase in normalized for phrase in DISALLOWED_REDIRECT_PHRASES)
+
+
+def _extract_category_context(chat_history: List[Dict[str, str]], question: str) -> str | None:
+    history = chat_history or []
+
+    # 1) Most reliable source: user's own explicit category statements, newest first.
+    for msg in reversed(history):
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content", "") or ""
+        if not _looks_like_user_category_statement(content):
+            continue
+        categories = _find_categories_in_text(content)
+        if categories:
+            return categories[0]
+
+    # 2) Fallback: most recent user message containing any known category.
+    for msg in reversed(history):
+        if msg.get("role") != "user":
+            continue
+        categories = _find_categories_in_text(msg.get("content", "") or "")
+        if categories:
+            return categories[0]
+
+    # 3) Last resort: current question if user explicitly frames it as own category.
+    if _looks_like_user_category_statement(question):
+        categories = _find_categories_in_text(question)
+        if categories:
+            return categories[0]
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -217,10 +407,9 @@ def _decide_after_local_rag(state: GraphState) -> str:
     )
     # Hem rephrased hem orijinal soruda keyword ara
     question = (state.get("rephrased_question") or state.get("question", "")).lower()
-    keywords = ["bu yıl", "bu sene", "2026", "güncel", "yeni", "this year", "هذه السنة", "هذا العام", "الآن", "حاليا", "current"]
-    needs_current = any(kw in question for kw in keywords)
+    needs_tavily = _needs_tavily(question)
 
-    if has_local and not needs_current:
+    if has_local and not needs_tavily:
         return "reranker"
     return "teknofest_web"
 
@@ -250,17 +439,13 @@ def _decide_after_teknofest_site(state: GraphState) -> str:
     has_site = any(
         c.source_type == "teknofest_site" for c in state.get("retrieved_chunks", [])
     )
+    question = (state.get("rephrased_question") or state.get("question", "")).lower()
+    if _needs_tavily(question):
+        return "tavily_web"
     if has_site:
         return "reranker"
-    
-    question = (state.get("rephrased_question") or state.get("question", "")).lower()
-    keywords = ["bu yıl", "bu sene", "2026", "güncel", "yeni", "this year", "هذه السنة", "هذا العام", "الآن", "حاليا", "current"]
-    needs_current = any(kw in question for kw in keywords)
-    
-    if needs_current:
-        return "tavily_web"
-    else:
-        return "llm_knowledge"
+    # No strong site evidence: always try Tavily before LLM knowledge fallback.
+    return "tavily_web"
 
 
 # ---- Tavily web fallback ----
@@ -271,17 +456,15 @@ def node_tavily_web(state: GraphState, settings: Settings) -> GraphState:
         query = normalize_turkish_query(state.get("rephrased_question") or state["question"])
         chunks = retrieve_from_tavily(tavily_tool, query=query)
         state.setdefault("retrieved_chunks", []).extend(chunks)
+        state.setdefault("meta", {})["tavily_used"] = bool(chunks)
     except RuntimeError as exc:
         logger.warning("Tavily unavailable: %s", exc)
+        state.setdefault("meta", {})["tavily_used"] = False
     return state
 
 
 def _decide_after_tavily(state: GraphState) -> str:
     """If Tavily produced chunks, proceed to reranker; otherwise fall back to LLM knowledge."""
-    has_tavily = any(
-        c.source_type == "tavily" for c in state.get("retrieved_chunks", [])
-    )
-    # Also check if we still have any retrieved chunks at all from earlier stages
     if state.get("retrieved_chunks"):
         return "reranker"
     return "llm_knowledge"
@@ -342,6 +525,206 @@ def node_context_builder(state: GraphState, settings: Settings) -> GraphState:
     return state
 
 
+# ---- Freshness gate ----
+
+@traceable(
+    run_type="chain", 
+    name="freshness_gate",
+    metadata={"pipeline_stage": "routing"}
+)
+def node_freshness_gate(state: GraphState, settings: Settings) -> GraphState:
+    """
+    Inspects context_chunks AFTER context_builder.
+    Sets state["meta"]["freshness_decision"] to:
+      - "serve_directly"  — chunks are trusted and query is not time-sensitive
+      - "fetch_live"      — query is time-sensitive OR chunks are from a stale source
+    """
+    question = (
+        state.get("rephrased_question") or state.get("question", "")
+    ).lower()
+
+    # Check 1 — Is the query about time-sensitive data?
+    is_sensitive = any(kw in question for kw in FRESHNESS_SENSITIVE_KEYWORDS)
+
+    # Check 2 — Are any context chunks from a potentially stale source?
+    chunks = state.get("context_chunks", [])
+    stale_chunks = [
+        c for c in chunks
+        if any(marker in c.source for marker in STALE_SOURCE_MARKERS)
+    ]
+    has_stale = bool(stale_chunks)
+
+    decision = "fetch_live" if (is_sensitive or has_stale) else "serve_directly"
+
+    state.setdefault("meta", {})["freshness_decision"] = decision
+    state.setdefault("meta", {})["freshness_stale_sources"] = [
+        c.source for c in stale_chunks
+    ]
+    state.setdefault("meta", {})["freshness_is_sensitive"] = is_sensitive
+    logger.info(
+        "Freshness gate: sensitive=%s stale_chunks=%d → %s",
+        is_sensitive, len(stale_chunks), decision,
+    )
+    return state
+
+
+def _decide_after_freshness_gate(state: GraphState) -> str:
+    return state.get("meta", {}).get("freshness_decision", "serve_directly")
+
+
+# ---- Live fetch node (3-step chain: page → Tavily → grounded LLM) ----
+
+async def node_live_fetch(state: GraphState, settings: Settings) -> GraphState:
+    """
+    Strict 3-step live-data chain for time-sensitive queries.
+
+    Step 1 — fetch_teknofest_competition_page (direct HTML scrape)
+    Step 2 — Tavily search with site:teknofest.org filter (only if Step 1 empty)
+    Step 3 — Grounded LLM synthesis; admits uncertainty if Steps 1-2 fail
+
+    Never returns numbers from parametric LLM memory.
+    """
+    from app.agent.tools import fetch_teknofest_competition_page
+
+    question = state.get("rephrased_question") or state["question"]
+    lower_q = question.lower()
+
+    # ------------------------------------------------------------------ Step 1
+    # Derive competition slug from question heuristically
+    slug_map = {
+        "insansiz kara": "insansiz-kara-araci-yarismasi",
+        "insansız kara": "insansiz-kara-araci-yarismasi",
+        "kara arac": "insansiz-kara-araci-yarismasi",
+        "insansiz hava": "insansiz-hava-araci-yarismasi",
+        "insansız hava": "insansiz-hava-araci-yarismasi",
+        "iha": "insansiz-hava-araci-yarismasi",
+        "drone": "drone-yarismasi",
+        "robolig": "robolig",
+        "robotik": "robotik-kodlama-yarismasi",
+        "yazilim": "teknofest-yazilim-yarismasi",
+        "yazılım": "teknofest-yazilim-yarismasi",
+        "yapay zeka": "yapay-zeka-yarismasi",
+        "saglikta yapay": "saglikta-yapay-zeka-yarismasi",
+        "sağlıkta yapay": "saglikta-yapay-zeka-yarismasi",
+        "model uydu": "model-uydu-yarismasi",
+        "roket": "model-roket-yarismasi",
+    }
+    slug: str | None = None
+    for keyword, candidate_slug in slug_map.items():
+        if keyword in lower_q:
+            slug = candidate_slug
+            break
+
+    live_page_content: str = ""
+    if slug:
+        try:
+            live_page_content = fetch_teknofest_competition_page.invoke({"competition_slug": slug})
+            # Treat fetch errors / very-short responses as empty
+            if live_page_content.startswith("[FETCH ERROR]") or len(live_page_content) < 200:
+                live_page_content = ""
+                logger.warning("Live fetch Step 1 returned error/empty for slug '%s'", slug)
+            else:
+                logger.info("Live fetch Step 1 OK: %d chars from %s", len(live_page_content), slug)
+        except Exception as exc:
+            logger.warning("Live fetch Step 1 exception: %s", exc)
+            live_page_content = ""
+
+    state.setdefault("meta", {})["live_fetch_step1_slug"] = slug
+    state.setdefault("meta", {})["live_fetch_step1_ok"] = bool(live_page_content)
+
+    # ------------------------------------------------------------------ Step 2
+    tavily_content: str = ""
+    if not live_page_content:
+        try:
+            tavily_tool = build_tavily_tool(settings)
+            tavily_query = f"{question} 2026 site:teknofest.org"
+            chunks = retrieve_from_tavily(tavily_tool, query=tavily_query)
+            if not chunks:
+                # Second attempt without site filter
+                chunks = retrieve_from_tavily(tavily_tool, query=f"TEKNOFEST 2026 {question}")
+            if chunks:
+                context_str, _ = build_context(chunks, max_total_chars=4_000)
+                tavily_content = context_str
+                # Attach chunks for source display
+                state.setdefault("retrieved_chunks", []).extend(chunks)
+                state["context_chunks"] = chunks
+                logger.info("Live fetch Step 2 (Tavily) OK: %d chunks", len(chunks))
+        except Exception as exc:
+            logger.warning("Live fetch Step 2 (Tavily) failed: %s", exc)
+
+    state.setdefault("meta", {})["live_fetch_step2_ok"] = bool(tavily_content)
+
+    # ------------------------------------------------------------------ Step 3
+    # Build context for the grounded LLM from whichever step succeeded
+    combined_context = live_page_content or tavily_content
+
+    llm = _build_llm(settings, temperature=0.1, purpose="main")
+
+    if combined_context:
+        sys_prompt = (
+            PERSONALITY_PREFIX + "\n\n"
+            "Sen TEKNOFEST bilgi asistanısın.\n"
+            "Aşağıda TEKNOFEST'in resmi sayfasından veya güvenilir web kaynaklarından alınmış CANLI veri var.\n"
+            "Bu veriden gelen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek 2026 verisidir.\n"
+            "Bağlamda rakam/tarih YOKsa: 'Bu konuda güncel bilgiye ulaşamadım.' de.\n"
+            "ASLA bağlamda olmayan bir rakam üretme — ne eski VectorDB verisini ne de kendi hafızanı kullan.\n"
+            "YASAK: 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi yönlendirme ifadeleri.\n"
+            "Türkçe cevapla."
+        )
+        user_prompt = (
+            f"Canlı kaynak verisi:\n{combined_context}\n\n"
+            f"Kullanıcı sorusu: {question}\n\n"
+            "Yalnızca yukarıdaki canlı veriye dayanarak cevapla."
+        )
+    else:
+        # Steps 1 & 2 both failed — honest uncertainty
+        sys_prompt = (
+            PERSONALITY_PREFIX + "\n\n"
+            "Sen TEKNOFEST bilgi asistanısın.\n"
+            "Bu soru için canlı veriye ulaşamadın. Bunu dürüstçe belirt.\n"
+            "ASLA ödül miktarı, tarih veya sıralama üretme.\n"
+            "Türkçe cevapla."
+        )
+        user_prompt = (
+            f"Soru: {question}\n\n"
+            "Canlı veri mevcut değil. Dürüstçe bilmediğini belirt; "
+            "kullanıcıya 'teknofest.org/tr/yarismalar sayfasını inceleyebilirsin' de."
+        )
+
+    try:
+        res = await llm.ainvoke([
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": user_prompt},
+        ])
+        answer = (res.content or "").strip()
+    except Exception as exc:
+        logger.error("Live fetch Step 3 LLM failed: %s", exc)
+        answer = "Şu an teknik bir sorun yaşıyorum, lütfen tekrar dene."
+
+    state["answer"] = answer
+    state["route_taken"] = "live_fetch"
+
+    # If Step 1 succeeded, add a synthetic chunk so sources display correctly
+    if live_page_content and slug:
+        from app.rag.retrievers import RetrievedChunk
+        live_chunk = RetrievedChunk(
+            content=live_page_content[:500],
+            metadata={
+                "url": f"https://www.teknofest.org/tr/yarismalar/{slug}/",
+                "source": f"https://www.teknofest.org/tr/yarismalar/{slug}/",
+                "title": "TEKNOFEST Yarışma Sayfası (Canlı)",
+                "document_type": "web_live",
+                "source_priority": 0,
+                "fetched_at": __import__('datetime').datetime.now().isoformat(),
+            },
+            score=1.0,
+            source_type="teknofest_site",
+        )
+        state["context_chunks"] = [live_chunk]
+
+    return state
+
+
 # ---- Direct LLM (non-TEKNOFEST) ----
 
 async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
@@ -355,7 +738,15 @@ async def node_direct_llm(state: GraphState, settings: Settings) -> GraphState:
 
 async def node_kisisel_llm(state: GraphState, settings: Settings) -> GraphState:
     llm_gen = _build_llm(settings, temperature=0.7, purpose="main")
-    sys_prompt = PERSONALITY_PREFIX + "\n\nSen TEKNOFEST'in sıcak ve samimi chatbot'usun. Sana kişisel bir soru soruldu. Eğlenceli ve destekleyici bir şekilde cevap ver, sonra konuyu nazikçe TEKNOFEST'e çek. Örnek: 'En sevdiğim kategori mi? Senin kategorin tabii ki! Hangi yarışmaya hazırlanıyorsun?'"
+    category_context = _extract_category_context(
+        state.get("chat_history") or [],
+        state.get("rephrased_question") or state.get("question", ""),
+    )
+    if category_context:
+        category_hint = f"Konuşma geçmişinden tespit edilen kategori: {category_context}. Cevabında bu kategori adını aynen kullan."
+    else:
+        category_hint = "Konuşma geçmişinde net bir kategori adı tespit edilemedi; kategori varsa kullanıcıdan gelen bağlamı koru."
+    sys_prompt = PERSONALITY_PREFIX + f"\n\n{category_hint}\nSen TEKNOFEST'in sıcak ve samimi chatbot'usun. Sana kişisel bir soru soruldu. Eğlenceli ve destekleyici bir şekilde cevap ver, sonra konuyu nazikçe TEKNOFEST'e çek. 'Senin kategorin' gibi belirsiz ifadeler yerine tespit edilen kategori adını kullan."
     ans_res = await llm_gen.ainvoke([
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": state["question"]}
@@ -371,17 +762,76 @@ async def node_kisisel_llm(state: GraphState, settings: Settings) -> GraphState:
 
 async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphState:
     llm = _build_llm(settings, temperature=0.3, purpose="main")
-    sys_prompt = PERSONALITY_PREFIX + "\n\nSen bir TEKNOFEST uzmanısın. Sana sağlanan belgelerden bu soruya cevap bulunamadı. TEKNOFEST hakkındaki genel bilginle soruyu yanıtla. Emin olmadığın bilgileri 'resmi kaynakları kontrol etmenizi öneririm' diyerek belirt. Asla TEKNOFEST dışı konularda bilgi üretme."
-    
-    res = await llm.ainvoke([
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": state.get("rephrased_question") or state["question"]}
-    ])
-    
-    state["answer"] = res.content
+    question = state.get("rephrased_question") or state["question"]
+
+    # Last-chance live retrieval: retry Tavily here before giving a generic answer.
+    live_chunks: List[RetrievedChunk] = []
+    try:
+        tavily_tool = build_tavily_tool(settings)
+        normalized_question = normalize_turkish_query(question)
+        live_chunks = retrieve_from_tavily(tavily_tool, query=normalized_question)
+        if not live_chunks:
+            enriched_query = f"TEKNOFEST {normalized_question}"
+            live_chunks = retrieve_from_tavily(tavily_tool, query=enriched_query)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LLM knowledge Tavily retry failed: %s", exc)
+
+    answer_text = ""
+    if live_chunks:
+        context_str, selected = build_context(live_chunks, max_total_chars=4_000)
+        state["context_chunks"] = selected
+        state.setdefault("retrieved_chunks", []).extend(live_chunks)
+        sys_prompt = (
+            PERSONALITY_PREFIX + "\n\n"
+            "Sen TEKNOFEST uzmanısın. Sana Tavily'den gerçek kaynaklar sağlandıysa onları kullanarak somut bilgi ver.\n"
+            "Kaynaklarda geçen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek verilerdir.\n"
+            "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
+            "Asla kaynaklarda olmayan bir rakam üretme.\n"
+            "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
+            "Cevabın sonunda her zaman kaynak bilgisini belirt.\n"
+            "Türkçe cevapla."
+        )
+        user_prompt = (
+            f"Canlı bağlam:\n{context_str}\n\n"
+            f"Soru: {question}\n\n"
+            "Yalnızca bağlam destekliyorsa sayı/tarih belirt."
+        )
+        res = await llm.ainvoke([
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": user_prompt},
+        ])
+        answer_text = (res.content or "").strip()
+    else:
+        sys_prompt = (
+            PERSONALITY_PREFIX + "\n\n"
+            "Sen TEKNOFEST uzmanısın. Sana Tavily'den gerçek kaynaklar sağlandıysa onları kullanarak somut bilgi ver.\n"
+            "Kaynaklarda geçen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek verilerdir.\n"
+            "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
+            "Asla kaynaklarda olmayan bir rakam üretme.\n"
+            "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
+            "Cevabın sonunda her zaman kaynak bilgisini belirt.\n"
+            "Türkçe cevapla."
+        )
+        res = await llm.ainvoke([
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": question},
+        ])
+        answer_text = (res.content or "").strip()
+
+    if _contains_disallowed_redirect(answer_text):
+        rewrite_prompt = (
+            "Aşağıdaki cevabı, kullanıcıyı başka kaynağa yönlendirmeden yeniden yaz. "
+            "Somut bilgiyi koru, 'kontrol edin/ziyaret edin/resmi kaynak' ifadelerini tamamen kaldır.\n\n"
+            f"Cevap:\n{answer_text}"
+        )
+        rewrite = await llm.ainvoke([{"role": "user", "content": rewrite_prompt}])
+        answer_text = (rewrite.content or answer_text).strip()
+
+    state["answer"] = answer_text
     state["route_taken"] = "llm_knowledge"
-    state["context_chunks"] = []
-    state["retrieved_chunks"] = []
+    if not live_chunks:
+        state["context_chunks"] = []
+        state["retrieved_chunks"] = []
     return state
 
 
@@ -392,6 +842,9 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
     F.3 — RAG bağlamını agent'e geçirir; agent tool calling loop ile
     gerekirse gerçek zamanlı bilgi çekerek cevabı üretir.
     route_taken ve prompt_preview mantığı korunur.
+
+    NOTE: This node is only reached when freshness_gate decided "serve_directly".
+    For time-sensitive queries with stale sources, `node_live_fetch` is used instead.
     """
     from app.agent.agent_node import run_agent_node  # lazy import — döngüsel import önleme
 
@@ -429,23 +882,34 @@ async def node_answer_synthesizer(state: GraphState, settings: Settings) -> Grap
 # ---- Hallucination guard ----
 
 async def node_hallucination_guard(state: GraphState, settings: Settings) -> GraphState:
-    result = await hallucination_check(
-        settings=settings,
-        question=state["question"],
-        answer=state.get("answer", ""),
-        context_chunks=state.get("context_chunks", []),
-    )
-    state.setdefault("meta", {})["hallucination_check"] = result
-    hal_status = result.get("status", "unknown")
+    answer = state.get("answer", "")
+    route_taken = state.get("route_taken", "")
+    
+    # Only flag if: no real sources AND answer contains invented numbers AND doesn't cite teknofest
+    if len(state.get("context_chunks", [])) == 0 and "teknofest.org" not in answer.lower() and any(
+        keyword in answer for keyword in ["TL", "milyon", "bin TL"]
+    ):
+        state["answer"] = "Bu konuda elimde doğrulanmış bilgi bulunmuyor. Lütfen soruyu daha detaylı sorarak tekrar dene; sana daha iyi yardımcı olayım."
+        state.setdefault("meta", {})["hallucination_detected"] = True
+        hal_status = "suspicious"
+    else:
+        result = await hallucination_check(
+            settings=settings,
+            question=state["question"],
+            answer=answer,
+            context_chunks=state.get("context_chunks", []),
+        )
+        state.setdefault("meta", {})["hallucination_check"] = result
+        hal_status = result.get("status", "unknown")
 
-    # Routes that generate answers without RAG context — never override them
-    bypass_routes = {"llm_knowledge", "kisisel", "direct"}
-    current_route = state.get("route_taken", "")
+        # Routes that generate answers without RAG context — never override them
+        # live_fetch answers are grounded in real-time data: treat as bypass
+        bypass_routes = {"llm_knowledge", "kisisel", "direct", "live_fetch"}
+        current_route = state.get("route_taken", "")
 
-    if current_route not in bypass_routes and not state.get("context_chunks"):
-        # ONLY force rejection if there's truly NO context
-        # If we have context, trust the agent's answer even if partially relevant
-        state["answer"] = "Sağlanan belgelerden ilgili bilgi bulamadım."
+        # Allow the agent's own actionable rejection or tool-fetched answer to pass through
+        if current_route not in bypass_routes and not state.get("context_chunks"):
+            pass
 
     # --- Evaluation logging ---
     retrieved = state.get("retrieved_chunks", [])
@@ -466,7 +930,7 @@ def _decide_after_hallucination_guard(state: GraphState) -> str:
     current_route = state.get("route_taken", "")
     
     # If we have context but agent said "not found", fallback to general knowledge
-    if has_context and is_rejection and current_route in ("local", "site"):
+    if is_rejection and current_route in ("local", "site", "tavily"):
         return "llm_knowledge"
     
     # Otherwise just end
@@ -578,6 +1042,14 @@ def build_teknofest_graph(settings: Settings):
     async def hallucination_guard_node(s: GraphState) -> GraphState:
         return await node_hallucination_guard(s, settings)
 
+    # ---- Wrap freshness gate & live fetch nodes ----
+
+    def freshness_gate_node(s: GraphState) -> GraphState:
+        return node_freshness_gate(s, settings)
+
+    async def live_fetch_node(s: GraphState) -> GraphState:
+        return await node_live_fetch(s, settings)
+
     # ---- Register nodes ----
     workflow.add_node("intent", intent_node)
     workflow.add_node("rephrase", rephrase_node)                   # D.3
@@ -586,6 +1058,8 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_node("tavily_web", tavily_web_node)
     workflow.add_node("reranker", reranker_node)
     workflow.add_node("context_builder", context_builder_node)
+    workflow.add_node("freshness_gate", freshness_gate_node)       # NEW
+    workflow.add_node("live_fetch", live_fetch_node)               # NEW
     workflow.add_node("direct_llm", direct_llm_node)
     workflow.add_node("kisisel_llm", kisisel_llm_node)
     workflow.add_node("llm_knowledge", llm_knowledge_node)
@@ -610,13 +1084,18 @@ def build_teknofest_graph(settings: Settings):
         "tavily_web": "tavily_web",
         "llm_knowledge": "llm_knowledge",
     })
-
     workflow.add_conditional_edges("tavily_web", _decide_after_tavily, {
         "reranker": "reranker",
         "llm_knowledge": "llm_knowledge",
     })
     workflow.add_edge("reranker", "context_builder")
-    workflow.add_edge("context_builder", "answer_synthesizer")
+    # context_builder → freshness_gate → (serve_directly | fetch_live)
+    workflow.add_edge("context_builder", "freshness_gate")         # CHANGED
+    workflow.add_conditional_edges("freshness_gate", _decide_after_freshness_gate, {
+        "serve_directly": "answer_synthesizer",
+        "fetch_live": "live_fetch",
+    })
+    workflow.add_edge("live_fetch", "hallucination_guard")         # NEW edge
     workflow.add_edge("answer_synthesizer", "hallucination_guard")
     workflow.add_conditional_edges("hallucination_guard", _decide_after_hallucination_guard, {
         "llm_knowledge": "llm_knowledge",
@@ -634,6 +1113,7 @@ def build_teknofest_graph(settings: Settings):
 # ---------------------------------------------------------------------------
 
 
+@traceable(run_type="chain", name="rag_pipeline")
 async def run_graph(
     graph,
     question: str,
