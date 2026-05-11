@@ -194,13 +194,23 @@ const App = {
             });
 
             const data = await res.json();
+
+            if (!res.ok) {
+                // API hata döndürdü (4xx / 5xx) — data.answer undefined olur, marked.parse patlar
+                const errMsg = data?.detail || `Sunucu hatası (${res.status})`;
+                UI.removeMessage(tempId);
+                UI.appendMessage({ role: 'ai', content: `⚠️ ${errMsg}` });
+                UI.scrollToBottom();
+                return;
+            }
+
             if (!this.state.currentSessionId) {
                 this.state.currentSessionId = data.session_id;
                 this.loadSessions(); // refresh sidebar
             }
             
             UI.removeMessage(tempId);
-            UI.appendMessage({ role: 'ai', content: data.answer, sources: data.sources });
+            UI.appendMessage({ role: 'ai', content: data.answer ?? '', sources: data.sources });
             UI.scrollToBottom();
 
         } catch (err) {
@@ -225,8 +235,29 @@ const App = {
             const users = await usersRes.json();
             const files = await filesRes.json();
 
-            // Populate form
+            // Populate form — per-purpose provider + model
             document.getElementById('llm_provider').value = config.llm_provider;
+            UI.updateModelDropdown('llm_model', config.llm_provider);
+            if (config.llm_model) document.getElementById('llm_model').value = config.llm_model;
+
+            const halProv = config.llm_hallucination_provider || config.llm_provider;
+            document.getElementById('llm_hallucination_provider').value = halProv;
+            UI.updateModelDropdown('llm_hallucination_model', halProv);
+            if (config.llm_hallucination_model) document.getElementById('llm_hallucination_model').value = config.llm_hallucination_model;
+
+            const tavProv = config.llm_tavily_provider || config.llm_provider;
+            document.getElementById('llm_tavily_provider').value = tavProv;
+            UI.updateModelDropdown('llm_tavily_model', tavProv);
+            if (config.llm_tavily_model) document.getElementById('llm_tavily_model').value = config.llm_tavily_model;
+
+            const rerProv = config.llm_reranker_provider || config.llm_provider;
+            document.getElementById('llm_reranker_provider').value = rerProv;
+            UI.updateModelDropdown('llm_reranker_model', rerProv);
+            if (config.llm_reranker_model) document.getElementById('llm_reranker_model').value = config.llm_reranker_model;
+
+            if (config.embedding_provider) document.getElementById('embedding_provider').value = config.embedding_provider;
+            if (config.embedding_model_name) document.getElementById('embedding_model_name').value = config.embedding_model_name;
+
             document.getElementById('retrieval_top_k').value = config.retrieval_top_k;
             document.getElementById('enable_reranking').checked = config.enable_reranking;
             document.getElementById('rag_confidence_threshold').value = config.rag_confidence_threshold;
@@ -280,6 +311,15 @@ const App = {
         e.preventDefault();
         const payload = {
             llm_provider: document.getElementById('llm_provider').value,
+            llm_model: document.getElementById('llm_model').value,
+            llm_hallucination_provider: document.getElementById('llm_hallucination_provider').value,
+            llm_hallucination_model: document.getElementById('llm_hallucination_model').value,
+            llm_tavily_provider: document.getElementById('llm_tavily_provider').value,
+            llm_tavily_model: document.getElementById('llm_tavily_model').value,
+            llm_reranker_provider: document.getElementById('llm_reranker_provider').value,
+            llm_reranker_model: document.getElementById('llm_reranker_model').value,
+            embedding_provider: document.getElementById('embedding_provider').value,
+            embedding_model_name: document.getElementById('embedding_model_name').value,
             retrieval_top_k: parseInt(document.getElementById('retrieval_top_k').value),
             enable_reranking: document.getElementById('enable_reranking').checked,
             rag_confidence_threshold: parseFloat(document.getElementById('rag_confidence_threshold').value)
@@ -438,6 +478,60 @@ const UI = {
         }
     },
 
+    updateModelDropdown(selectId, provider) {
+        if (!provider) return;
+        const p = provider.toLowerCase().trim();
+        const options = {
+            'groq': [
+                { id: 'llama-3.3-70b-versatile', label: 'llama-3.3-70b-versatile' },
+                { id: 'mixtral-8x7b-32768', label: 'mixtral-8x7b-32768' },
+            ],
+            'openai': [
+                { id: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+                { id: 'gpt-4o', label: 'gpt-4o' },
+            ],
+            'deepseek': [
+                { id: 'deepseek-chat', label: 'deepseek-chat' },
+            ],
+            'kimi': [
+                { id: 'moonshot-v1-8k', label: 'moonshot-v1-8k' },
+                { id: 'moonshot-v1-32k', label: 'moonshot-v1-32k' },
+            ],
+            'anthropic': [
+                { id: 'claude-3-haiku-20240307', label: 'claude-3-haiku' },
+                { id: 'claude-3-5-sonnet-20240620', label: 'claude-3.5-sonnet' },
+            ],
+            'together': [
+                { id: 'meta-llama/Llama-3-70b-chat-hf', label: 'Llama-3-70b-chat' },
+                { id: 'mistralai/Mixtral-8x7B-Instruct-v0.1', label: 'Mixtral-8x7B-Instruct' },
+            ]
+        };
+        const models = options[p] || options['openai'];
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const currentVal = select.value;
+        select.innerHTML = '';
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            select.appendChild(opt);
+        });
+        if (models.some(m => m.id === currentVal)) {
+            select.value = currentVal;
+        } else if (models.length > 0) {
+            select.value = models[0].id;
+        }
+    },
+
+    // Legacy compat — eski çağrılar için
+    updateModelDropdowns(provider) {
+        this.updateModelDropdown('llm_model', provider);
+        this.updateModelDropdown('llm_hallucination_model', provider);
+        this.updateModelDropdown('llm_tavily_model', provider);
+        this.updateModelDropdown('llm_reranker_model', provider);
+    },
+
     renderSessionList(sessions) {
         const ul = document.getElementById('session-list');
         ul.innerHTML = '';
@@ -478,7 +572,12 @@ const UI = {
         const avatarStr = isAi ? "AI" : (App.state.user?.is_guest ? "M" : (App.state.user?.email?.[0] || 'U').toUpperCase());
         
         // Parse markdown if marked is available
-        const parsedContent = (window.marked && isAi) ? marked.parse(msg.content) : `<p>${msg.content.replace(/\ng/, "<br>")}</p>`;
+        // Guard: msg.content null/undefined ise marked.parse "input parameter is undefined" fırlatır
+        const safeContent = msg.content ?? '';
+        const parsedContent = (window.marked && isAi && safeContent)
+            ? marked.parse(safeContent)
+            : `<p>${(safeContent).replace(/\n/g, "<br>")}</p>`;
+
         
         let sourcesHtml = '';
         if (isAi && msg.sources && msg.sources.length > 0) {

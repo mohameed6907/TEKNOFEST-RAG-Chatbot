@@ -120,6 +120,26 @@ def normalize_chunk(text: str) -> str:
     return text.strip()
 
 
+def normalize_turkish_query(query: str) -> str:
+    """
+    Light, Turkish-aware normalization for user queries before retrieval.
+    Applies NFC normalization, Turkish locale-aware lowercasing,
+    and collapses whitespace.
+    """
+    if not query:
+        return ""
+        
+    query = unicodedata.normalize("NFC", query)
+    
+    # Locale-aware lowercasing for Turkish 'I'/'i'
+    query = query.replace("I", "ı").replace("İ", "i")
+    query = query.lower()
+    
+    # Remove excessive punctuation/whitespace
+    query = _MULTI_SPACE.sub(" ", query)
+    return query.strip()
+
+
 def infer_doc_type(filename: str) -> DocType:
     """Infer DocType from a file extension or URL."""
     name = filename.lower()

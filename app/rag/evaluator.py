@@ -63,6 +63,8 @@ def log_retrieval_event(
     hallucination_status: str = "unknown",
     failure_tags: Optional[List[FailureTag]] = None,
     latency_ms: Optional[float] = None,
+    rephrased_question: Optional[str] = None,      # D.5
+    chat_history_length: int = 0,                  # D.5
 ) -> None:
     """
     Append one retrieval event to the JSONL log file.
@@ -83,6 +85,10 @@ def log_retrieval_event(
         "latency_ms": round(latency_ms, 1) if latency_ms is not None else None,
         "failure_tags": failure_tags or [],
         "hallucination_status": hallucination_status,
+        # D.5 — rephrase observability
+        "rephrased": rephrased_question is not None and rephrased_question != query,
+        "rephrased_question": rephrased_question or "",
+        "chat_history_length": chat_history_length,
         "retrieved_metadata": [
             {
                 "source": ch.metadata.get("source") or ch.metadata.get("url"),

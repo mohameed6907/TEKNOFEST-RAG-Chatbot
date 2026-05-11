@@ -24,18 +24,40 @@ async def hallucination_check(
     context_chunks: List[RetrievedChunk],
 ) -> Dict[str, Any]:
     """
-    Basit bir self-check: LLM'e cevabın kaynaklarla uyumlu olup olmadığını sorar.
+    Lenient RAG hallucination check: only flags obvious hallucinations.
+    When agent HAS context, we trust its judgment unless it's clearly
+    using only external knowledge.
     """
+    # Rule 1: No context → answer MUST be some form of rejection or redirect, OR it must be fetched from tool
     if not context_chunks:
-        return {"status": "unknown", "reason": "no_context"}
+        ans_lower = answer.lower()
+        if "bulamadım" in ans_lower or "bulunamadı" in ans_lower or "teknofest.org" in ans_lower or "bilmiyorum" in ans_lower:
+            return {"status": "safe", "reason": "no_context_actionable_rejection_or_tool"}
+        # Any other answer without context is likely hallucinated knowledge
+        return {"status": "suspicious", "reason": "no_context_but_answered"}
 
-    llm = get_llm_service(settings).get_chat_model(temperature=0.0)
+    llm = get_llm_service(settings).get_chat_model(temperature=0.0, purpose="hallucination")
+
+    from datetime import datetime
+    current_date = datetime.now().strftime("%d %B %Y, %A")
 
     source_summaries = summarize_sources_for_check(context_chunks)
-    prompt = HALLUCINATION_CHECK_PROMPT.format(
-        question=question,
-        answer=answer,
-        source_summaries=source_summaries,
+    
+    # Lenient check: only flag obvious hallucinations (completely contradicting context)
+    # Don't reject for partial relevance — that's what agent is for
+    prompt = (
+        f"Bugünün tarihi: {current_date}\n\n"
+        "GÖREV: Cevabın AÇIKÇA çelişkiye girdiğini kontrol et. Kısmi relevans UYGUN.\n\n"
+        f"Soru: {question}\n\n"
+        f"Cevap: {answer}\n\n"
+        f"Sağlanan kaynaklar:\n{source_summaries}\n\n"
+        "KATIŞTI KONTROLLER:\n"
+        "1. Cevap sağlanan kaynakla AÇIKÇA çelişkiye giriyor mu?\n"
+        "2. Cevap hiç kaynakça belirtmiyor ve genel bilgi mi?\n"
+        "3. Cevap bağlamdan tahmin mi yapıyor?\n\n"
+        "YALNIZCA şu cevaplardan biriyle yanıt ver:\n"
+        "- GUVENLI (cevap kaynakla uyumlu, kısmi relevans da kabul)\n"
+        "- SUPHELI (cevap kaynakla açıkça çelişkili VEYA genel bilgi)"
     )
 
     msg = [{"role": "user", "content": prompt}]

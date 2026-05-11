@@ -17,6 +17,7 @@ import time
 from typing import List
 
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from app.config import Settings
 
@@ -49,17 +50,23 @@ class EmbeddingService:
     """
 
     def __init__(self, settings: Settings) -> None:
-        if not settings.openai_api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY is required for the embedding service. "
-                "Set it in your .env file."
-            )
         self._model = settings.embedding_model_name
-        self._api_key = settings.openai_api_key
-        self._lc_embeddings = OpenAIEmbeddings(
-            model=self._model,
-            openai_api_key=self._api_key,
-        )
+        self._provider = getattr(settings, "embedding_provider", "openai").lower()
+        
+        if self._provider == "huggingface" or "sentence-transformers" in self._model:
+            logger.info(f"Initializing HuggingFaceEmbeddings with model={self._model}")
+            self._lc_embeddings = HuggingFaceEmbeddings(model_name=self._model)
+        else:
+            if not settings.openai_api_key:
+                raise RuntimeError(
+                    "OPENAI_API_KEY is required for the OpenAI embedding service. "
+                    "Set it in your .env file."
+                )
+            self._api_key = settings.openai_api_key
+            self._lc_embeddings = OpenAIEmbeddings(
+                model=self._model,
+                openai_api_key=self._api_key,
+            )
         logger.info("EmbeddingService initialised with model=%s", self._model)
 
     # ------------------------------------------------------------------

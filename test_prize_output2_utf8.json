@@ -1,0 +1,77 @@
+{
+  "session_id": "33067631-c740-4214-9c0c-494787fa40e7",
+  "answer": "İnsansız Kara Aracı Yarışması'nın 2026 yılı için kesin ödül miktarları henüz açıklanmamış. Ancak, yarışmaya katılan takımların zorlu parkurlarda başarı göstermesi için büyük bir motivasyon kaynağı olacağı kesin! Senin gibi heyecanlı yarışmacıları desteklemek için buradayım! Başarılar dilerim! 🌟",
+  "sources": [
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://www.teknofest.org/tr/yarismalar/insansiz-kara-araci-yarismasi/",
+        "title": "İnsansız Kara Aracı Yarışması | TEKNOFEST",
+        "source": "https://www.teknofest.org/tr/yarismalar/insansiz-kara-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **İnsansız Kara Aracı Yarışması | TEKNOFEST**. # **Yarışma Hakkında**. İnsansız Kara Araçları yarışmasında amaç ateş desteği vazifesi de dahil olmak üzere İKA’ların harp koşullarında başından geçece",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://teknofest.org/tr/yarismalar/uluslararasi-insansiz-hava-araci-yarismasi/",
+        "title": "Uluslararası İnsansız Hava Aracı Yarışması | TEKNOFEST",
+        "source": "https://teknofest.org/tr/yarismalar/uluslararasi-insansiz-hava-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **Uluslararası İnsansız Hava Aracı Yarışması | TEKNOFEST**. TEKNOFEST Teknoloji yarışmaları kapsamında Uluslararası İnsansız Hava Araçları Yarışması düzenlenmektedir. Yarışmanın amacı, öğrencileri İ",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://www.teknofest.org/tr/yarismalar/tarimsal-insansiz-kara-araci-yarismasi/",
+        "title": "Tarımsal İnsansız Kara Aracı Yarışması | TEKNOFEST",
+        "source": "https://www.teknofest.org/tr/yarismalar/tarimsal-insansiz-kara-araci-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "Tarımsal İnsansız Kara Aracı Yarışması | TEKNOFEST. Yarışma Hakkında; Yarışma Takvimi; Yarışma Ödülleri; Derece Listesi; Rapor Şablonları; Yarışma Dokümanları",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://teknofest.org/tr/yarismalar/savasan-iha-yarismasi/",
+        "title": "Savaşan İHA Yarışması | TEKNOFEST",
+        "source": "https://teknofest.org/tr/yarismalar/savasan-iha-yarismasi/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "# **Savaşan İHA Yarışması | TEKNOFEST**. ## Yarışma Hakkında. Yarışmaya katılan her bir İHA, yarışma esnasında aynı anda havada olacak ve birbirleri ile mücadele edecektir. Yarışma “Savaşan İHA” ve “K",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    },
+    {
+      "type": "tavily",
+      "metadata": {
+        "url": "https://www.teknofest.org/tr/duyurular/teknofestte-savasan-ihalar-buyuk-mucadeleye-hazirlaniyor/",
+        "title": "TEKNOFEST'te Savaşan İHA'lar Büyük Mücadeleye Hazırlanıyor!",
+        "source": "https://www.teknofest.org/tr/duyurular/teknofestte-savasan-ihalar-buyuk-mucadeleye-hazirlaniyor/",
+        "document_type": "web",
+        "source_priority": 1
+      },
+      "score": null,
+      "content_preview": "Savaşan İHA Yarışması'nda dereceye giren takımları önemli ödüller bekliyor. Yarışmayı birincilikle tamamlayan ekip 600 bin TL, ikinci olan ekip",
+      "trust_level": "high",
+      "trust_label": "Resmi Kaynak"
+    }
+  ],
+  "route_taken": "llm_knowledge"
+}
