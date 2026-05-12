@@ -282,7 +282,8 @@ async def node_intent_classification(state: GraphState, settings: Settings) -> G
     llm = _build_llm(settings, temperature=0.0, purpose="tavily")
     from datetime import datetime
     current_date = datetime.now().strftime("%d %B %Y, %A")
-    prompt = f"Bugünün tarihi: {current_date}\n\n" + INTENT_CLASSIFICATION_PROMPT.format(question=state["question"])
+    query_to_classify = state.get("rephrased_question") or state["question"]
+    prompt = f"Bugünün tarihi: {current_date}\n\n" + INTENT_CLASSIFICATION_PROMPT.format(question=query_to_classify)
     res = await llm.ainvoke([{"role": "user", "content": prompt}])
     label_raw = (res.content or "").strip().upper()
     # Normalize Turkish characters for robust matching
@@ -309,7 +310,7 @@ async def node_intent_classification(state: GraphState, settings: Settings) -> G
 
 def _decide_next_after_intent(state: GraphState) -> str:
     if state.get("intent") == "TEKNOFEST":
-        return "rephrase"
+        return "local_rag"
     elif state.get("intent") == "KISISEL":
         return "kisisel_llm"
     else:
@@ -352,6 +353,7 @@ async def node_rephrase(state: GraphState, settings: Settings) -> GraphState:
             state["rephrased_question"] = rephrased
             state.setdefault("meta", {})["rephrase_used"] = True
             state.setdefault("meta", {})["rephrase_output"] = rephrased != state["question"]
+            state.setdefault("meta", {})["rephrased_question"] = rephrased
     except Exception as exc:
         logger.warning("Rephrase LLM call failed: %s, using original question", exc)
         state["rephrased_question"] = state["question"]
@@ -1184,14 +1186,14 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_node("hallucination_guard", hallucination_guard_node)
 
     # ---- Edges ----
-    # intent → conditional (rephrase veya direct_llm)
-    workflow.set_entry_point("intent")
+    # rephrase -> intent → conditional (local_rag veya direct_llm)
+    workflow.set_entry_point("rephrase")
+    workflow.add_edge("rephrase", "intent")
     workflow.add_conditional_edges("intent", _decide_next_after_intent, {
-        "rephrase": "rephrase",
+        "local_rag": "local_rag",
         "kisisel_llm": "kisisel_llm",
         "direct_llm": "direct_llm",
     })
-    workflow.add_edge("rephrase", "local_rag")
     workflow.add_conditional_edges("local_rag", _decide_after_local_rag, {
         "reranker": "reranker",
         "teknofest_web": "teknofest_web",

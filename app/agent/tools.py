@@ -194,6 +194,99 @@ def get_festival_location_info(city: str = "İstanbul") -> str:
         "Şehir adını İstanbul, Ankara, İzmir veya Trabzon olarak yazarsan net lokasyon bilgisini hemen paylaşırım."
     )
 
+SLUG_MAP = {
+    # --- Short keywords & Shorthands ---
+    "insansiz kara": "insansiz-kara-araci-yarismasi",
+    "insansız kara": "insansiz-kara-araci-yarismasi",
+    "kara arac": "insansiz-kara-araci-yarismasi",
+    "insansiz hava": "insansiz-hava-araci-yarismasi",
+    "insansız hava": "insansiz-hava-araci-yarismasi",
+    "iha": "insansiz-hava-araci-yarismasi",
+    "drone": "teknofest-drone-sampiyonasi",
+    "robolig": "teknofest-robolig-yarismasi",
+    "robotik": "sanayide-robotik-uygulamalar-yarismasi",
+    "yazilim": "teknofest-yazilim-yarismasi",
+    "yazılım": "teknofest-yazilim-yarismasi",
+    "yapay zeka": "saglikta-yapay-zeka-yarismasi",
+    "saglikta yapay": "saglikta-yapay-zeka-yarismasi",
+    "sağlıkta yapay": "saglikta-yapay-zeka-yarismasi",
+    "model uydu": "model-uydu-yarismasi",
+    "roket": "roket-yarismasi",
+    "kuantum": "kuantum-teknolojileri-yarismasi",
+    "biyoteknoloji": "biyoteknoloji-inovasyon-yarismasi",
+    "blokzincir": "blokzincir-yarismasi",
+    "cip tasarim": "cip-tasarim-yarismasi",
+    "çip tasarım": "cip-tasarim-yarismasi",
+    "e-ticaret": "e-ticaret-yarismasi",
+    "surdurulebilir sehir": "gelecegin-surdurulebilir-sehirleri-yarismasi",
+    "finansal teknoloji": "finansal-teknolojiler-yarismasi",
+    "fintek": "finansal-teknolojiler-yarismasi",
+    "uydu terminal": "hareketli-uydu-terminali-yarismasi",
+    "hyperloop": "hyperloop-gelistirme-yarismasi",
+    "deniz araci": "insansiz-deniz-araci-yarismasi",
+    "su alti": "insansiz-su-alti-sistemleri-yarismasi",
+    "jet motor": "jet-motor-tasarim-yarismasi",
+    "iklim degisikligi": "lise-ogrencileri-iklim-degisikligi-arastirma-projeleri-yarismasi",
+    "kutup arastirma": "lise-ogrencileri-kutup-arastirma-projeleri-yarismasi",
+    "nukleer enerji": "nukleer-enerji-teknolojileri-tasarim-yarismasi",
+    "onkoloji": "onkolojide-3t-yarismasi",
+    "pardus": "pardus-hata-yakalama-ve-oneri-yarismasi",
+    "robotaksi": "robotaksi-binek-otonom-arac-yarismasi",
+    "tarim": "tarim-teknolojileri-yarismasi",
+    "dogal dil": "turkce-dogal-dil-isleme-yarismasi",
+    "elektronik harp": "elektronik-harp-yarismasi",
+    "maden": "maden-teknolojileri-yarismasi",
+    
+    # --- Full Category Names ---
+    "5g & yapay zeka ile akıllı yol güvenliği yarışması": "5g-yapay-zeka-ile-akilli-yol-guvenligi-yarismasi",
+    "biyoteknoloji i̇novasyon yarışması": "biyoteknoloji-inovasyon-yarismasi",
+    "blokzincir yarışması": "blokzincir-yarismasi",
+    "çip tasarım yarışması": "cip-tasarim-yarismasi",
+    "dikey i̇nişli roket yarışması": "dikey-inisli-roket-yarismasi",
+    "e-ticaret yarışması": "e-ticaret-yarismasi",
+    "geleceğin sürdürülebilir şehirleri yarışması": "gelecegin-surdurulebilir-sehirleri-yarismasi",
+    "yapay zeka destekli lojistik anahat optimizasyonu yarışması": "yapay-zeka-destekli-lojistik-anahat-optimizasyonu-yarismasi",
+    "finansal teknolojiler yarışması": "finansal-teknolojiler-yarismasi",
+    "hareketli uydu terminali yarışması": "hareketli-uydu-terminali-yarismasi",
+    "havacılıkta yapay zeka yarışması": "havacilikta-yapay-zeka-yarismasi",
+    "çelikkubbe hava savunma sistemleri yarışması": "celikkubbe-hava-savunma-sistemleri-yarismasi",
+    "hyperloop geliştirme yarışması": "hyperloop-gelistirme-yarismasi",
+    "i̇nsansız deniz aracı yarışması": "insansiz-deniz-araci-yarismasi",
+    "i̇nsansız kara aracı yarışması": "insansiz-kara-araci-yarismasi",
+    "i̇nsansız su altı sistemleri yarışması": "insansiz-su-alti-sistemleri-yarismasi",
+    "i̇nsansız su altı sistemleri yıldızlar yarışması": "insansiz-su-alti-sistemleri-yildizlar-yarismasi",
+    "jet motor tasarım yarışması": "jet-motor-tasarim-yarismasi",
+    "kuantum teknolojileri yarışması": "kuantum-teknolojileri-yarismasi",
+    "liseler arası i̇nsansız hava araçları yarışması": "liseler-arasi-insansiz-hava-araclari-yarismasi",
+    "lise öğrencileri i̇klim değişikliği araştırma projeleri yarışması": "lise-ogrencileri-iklim-degisikligi-arastirma-projeleri-yarismasi",
+    "lise öğrencileri kutup araştırma projeleri yarışması": "lise-ogrencileri-kutup-arastirma-projeleri-yarismasi",
+    "model uydu yarışması": "model-uydu-yarismasi",
+    "nükleer enerji teknolojileri tasarım yarışması": "nukleer-enerji-teknolojileri-tasarim-yarismasi",
+    "onkolojide 3t yarışması": "onkolojide-3t-yarismasi",
+    "pardus hata yakalama ve öneri yarışması": "pardus-hata-yakalama-ve-oneri-yarismasi",
+    "robotaksi-binek otonom araç yarışması": "robotaksi-binek-otonom-arac-yarismasi",
+    "roket yarışması": "roket-yarismasi",
+    "sağlıkta yapay zeka yarışması": "saglikta-yapay-zeka-yarismasi",
+    "sanayide robotik uygulamalar yarışması": "sanayide-robotik-uygulamalar-yarismasi",
+    "sürü i̇ha yarışması": "suru-iha-yarismasi",
+    "savaşan i̇ha yıldızlar yarışması": "savasan-iha-yildizlar-yarismasi",
+    "savaşan i̇ha yarışması": "savasan-iha-yarismasi",
+    "savaşan i̇ha avcı drone yarışması": "savasan-iha-avci-drone-yarismasi",
+    "su altı roket yarışması": "su-alti-roket-yarismasi",
+    "tarım teknolojileri yarışması": "tarim-teknolojileri-yarismasi",
+    "teknofest drone şampiyonası": "teknofest-drone-sampiyonasi",
+    "teknofest mimari ve görsel tasarım yarışması": "teknofest-mimari-ve-gorsel-tasarim-yarismasi",
+    "teknofest robolig yarışması": "teknofest-robolig-yarismasi",
+    "world drone cup": "world-drone-cup",
+    "uluslararası elektrikli araç yarışları": "uluslararasi-elektrikli-arac-yarislari",
+    "uluslararası i̇nsansız hava aracı yarışması": "uluslararasi-insansiz-hava-araci-yarismasi",
+    "türkçe doğal dil i̇şleme yarışması": "turkce-dogal-dil-isleme-yarismasi",
+    "yapay zeka destekli havayolu optimizasyonu yarışması": "yapay-zeka-destekli-havayolu-optimizasyonu-yarismasi",
+    "elektronik harp yarışması": "elektronik-harp-yarismasi",
+    "maden teknolojileri yarışması": "maden-teknolojileri-yarismasi",
+    "i̇leri otonom sistemler tasarım ve operasyon yarışması": "ileri-otonom-sistemler-tasarim-ve-operasyon-yarismasi",
+}
+
 @tool
 @traceable(
     run_type="tool",
@@ -213,6 +306,9 @@ def fetch_teknofest_competition_page(competition_slug: str) -> str:
     """
     import httpx
     from html.parser import HTMLParser
+    
+    # Try to resolve the slug from the dictionary first in case the LLM passed a generic keyword
+    resolved_slug = SLUG_MAP.get(competition_slug.lower().strip(), competition_slug)
 
     class _TextExtractor(HTMLParser):
         """Minimal HTML → plain-text extractor (stdlib only, no extra deps)."""
@@ -246,7 +342,7 @@ def fetch_teknofest_competition_page(competition_slug: str) -> str:
             text = re.sub(r"\n{3,}", "\n\n", text)
             return text.strip()
 
-    url = f"https://www.teknofest.org/tr/yarismalar/{competition_slug}/"
+    url = f"https://www.teknofest.org/tr/yarismalar/{resolved_slug}/"
     try:
         response = httpx.get(
             url,

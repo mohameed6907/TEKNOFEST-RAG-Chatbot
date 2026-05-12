@@ -1,17 +1,13 @@
-"""
-memory.py
-=========
-Conversational memory utilities for the TEKNOFEST RAG pipeline.
+import asyncio
+import os
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-Provides:
-- REPHRASE_PROMPT: ChatPromptTemplate for standalone question rewriting
-- build_rephrase_chain(llm): Returns a runnable rephrase chain
-- format_chat_history(messages): Converts SQLite message dicts to a string
-"""
-from __future__ import annotations
-
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from app.config import get_settings
+from app.llm import get_llm_service
 
 REPHRASE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a question rewriting assistant for a TEKNOFEST chatbot.
@@ -36,24 +32,20 @@ New question: {question}
 Rewritten standalone question:""")
 ])
 
+async def test():
+    settings = get_settings()
+    llm = get_llm_service(settings).get_chat_model(temperature=0.0)
+    chain = REPHRASE_PROMPT | llm | StrOutputParser()
+    
+    history = """Kullanıcı: İnsansız Kara Aracı (İKA) yarışması hakkında bilgi verir misin?
+Asistan (özet): İnsansız Kara Aracı (İKA) Yarışması, TEKNOFEST kapsamında düzenlenen bir yarışmadır. Bu yarışmada araçların parkur üzerindeki performansı ölçülür. Parkur çeşitli engellerden oluşmaktadır."""
+    
+    question = "parkur hakkında daha fazla bilgi var mı"
+    
+    res = await chain.ainvoke({"chat_history": history, "question": question})
+    print(f"History:\n{history}")
+    print(f"Question: {question}")
+    print(f"Result: {res}")
 
-def build_rephrase_chain(llm):
-    """
-    Deterministik rephrase chain (temperature=0 LLM ile kullanılır).
-    LLM factory'den purpose='rephrase' ile çağır.
-
-    Returns:
-        Runnable: REPHRASE_PROMPT | llm | StrOutputParser
-    """
-    return REPHRASE_PROMPT | llm | StrOutputParser()
-
-
-def format_chat_history(messages: list[dict]) -> str:
-    recent = messages[-6:] if len(messages) > 6 else messages
-    lines = []
-    for msg in recent:
-        if msg["role"] == "user":
-            lines.append(f"Kullanıcı: {msg['content']}")
-        else:
-            lines.append(f"Asistan (özet): {msg['content']}")
-    return "\n".join(lines)
+if __name__ == "__main__":
+    asyncio.run(test())
