@@ -282,7 +282,8 @@ async def node_intent_classification(state: GraphState, settings: Settings) -> G
     llm = _build_llm(settings, temperature=0.0, purpose="tavily")
     from datetime import datetime
     current_date = datetime.now().strftime("%d %B %Y, %A")
-    prompt = f"Bugünün tarihi: {current_date}\n\n" + INTENT_CLASSIFICATION_PROMPT.format(question=state["question"])
+    query_to_classify = state.get("rephrased_question") or state["question"]
+    prompt = f"Bugünün tarihi: {current_date}\n\n" + INTENT_CLASSIFICATION_PROMPT.format(question=query_to_classify)
     res = await llm.ainvoke([{"role": "user", "content": prompt}])
     label_raw = (res.content or "").strip().upper()
     # Normalize Turkish characters for robust matching
@@ -309,7 +310,7 @@ async def node_intent_classification(state: GraphState, settings: Settings) -> G
 
 def _decide_next_after_intent(state: GraphState) -> str:
     if state.get("intent") == "TEKNOFEST":
-        return "rephrase"
+        return "local_rag"
     elif state.get("intent") == "KISISEL":
         return "kisisel_llm"
     else:
@@ -352,6 +353,7 @@ async def node_rephrase(state: GraphState, settings: Settings) -> GraphState:
             state["rephrased_question"] = rephrased
             state.setdefault("meta", {})["rephrase_used"] = True
             state.setdefault("meta", {})["rephrase_output"] = rephrased != state["question"]
+            state.setdefault("meta", {})["rephrased_question"] = rephrased
     except Exception as exc:
         logger.warning("Rephrase LLM call failed: %s, using original question", exc)
         state["rephrased_question"] = state["question"]
@@ -593,22 +595,96 @@ async def node_live_page_fetch(state: GraphState, settings: Settings) -> GraphSt
     lower_q = question.lower()
     
     slug_map = {
+        # --- Short keywords & Shorthands ---
         "insansiz kara": "insansiz-kara-araci-yarismasi",
         "insansız kara": "insansiz-kara-araci-yarismasi",
         "kara arac": "insansiz-kara-araci-yarismasi",
         "insansiz hava": "insansiz-hava-araci-yarismasi",
         "insansız hava": "insansiz-hava-araci-yarismasi",
         "iha": "insansiz-hava-araci-yarismasi",
-        "drone": "drone-yarismasi",
-        "robolig": "robolig",
-        "robotik": "robotik-kodlama-yarismasi",
+        "drone": "teknofest-drone-sampiyonasi",
+        "robolig": "teknofest-robolig-yarismasi",
+        "robotik": "sanayide-robotik-uygulamalar-yarismasi",
         "yazilim": "teknofest-yazilim-yarismasi",
         "yazılım": "teknofest-yazilim-yarismasi",
-        "yapay zeka": "yapay-zeka-yarismasi",
+        "yapay zeka": "saglikta-yapay-zeka-yarismasi",
         "saglikta yapay": "saglikta-yapay-zeka-yarismasi",
         "sağlıkta yapay": "saglikta-yapay-zeka-yarismasi",
         "model uydu": "model-uydu-yarismasi",
-        "roket": "model-roket-yarismasi",
+        "roket": "roket-yarismasi",
+        "kuantum": "kuantum-teknolojileri-yarismasi",
+        "biyoteknoloji": "biyoteknoloji-inovasyon-yarismasi",
+        "blokzincir": "blokzincir-yarismasi",
+        "cip tasarim": "cip-tasarim-yarismasi",
+        "çip tasarım": "cip-tasarim-yarismasi",
+        "e-ticaret": "e-ticaret-yarismasi",
+        "surdurulebilir sehir": "gelecegin-surdurulebilir-sehirleri-yarismasi",
+        "finansal teknoloji": "finansal-teknolojiler-yarismasi",
+        "fintek": "finansal-teknolojiler-yarismasi",
+        "uydu terminal": "hareketli-uydu-terminali-yarismasi",
+        "hyperloop": "hyperloop-gelistirme-yarismasi",
+        "deniz araci": "insansiz-deniz-araci-yarismasi",
+        "su alti": "insansiz-su-alti-sistemleri-yarismasi",
+        "jet motor": "jet-motor-tasarim-yarismasi",
+        "iklim degisikligi": "lise-ogrencileri-iklim-degisikligi-arastirma-projeleri-yarismasi",
+        "kutup arastirma": "lise-ogrencileri-kutup-arastirma-projeleri-yarismasi",
+        "nukleer enerji": "nukleer-enerji-teknolojileri-tasarim-yarismasi",
+        "onkoloji": "onkolojide-3t-yarismasi",
+        "pardus": "pardus-hata-yakalama-ve-oneri-yarismasi",
+        "robotaksi": "robotaksi-binek-otonom-arac-yarismasi",
+        "tarim": "tarim-teknolojileri-yarismasi",
+        "dogal dil": "turkce-dogal-dil-isleme-yarismasi",
+        "elektronik harp": "elektronik-harp-yarismasi",
+        "maden": "maden-teknolojileri-yarismasi",
+        
+        # --- Full Category Names ---
+        "5g & yapay zeka ile akıllı yol güvenliği yarışması": "5g-yapay-zeka-ile-akilli-yol-guvenligi-yarismasi",
+        "biyoteknoloji i̇novasyon yarışması": "biyoteknoloji-inovasyon-yarismasi",
+        "blokzincir yarışması": "blokzincir-yarismasi",
+        "çip tasarım yarışması": "cip-tasarim-yarismasi",
+        "dikey i̇nişli roket yarışması": "dikey-inisli-roket-yarismasi",
+        "e-ticaret yarışması": "e-ticaret-yarismasi",
+        "geleceğin sürdürülebilir şehirleri yarışması": "gelecegin-surdurulebilir-sehirleri-yarismasi",
+        "yapay zeka destekli lojistik anahat optimizasyonu yarışması": "yapay-zeka-destekli-lojistik-anahat-optimizasyonu-yarismasi",
+        "finansal teknolojiler yarışması": "finansal-teknolojiler-yarismasi",
+        "hareketli uydu terminali yarışması": "hareketli-uydu-terminali-yarismasi",
+        "havacılıkta yapay zeka yarışması": "havacilikta-yapay-zeka-yarismasi",
+        "çelikkubbe hava savunma sistemleri yarışması": "celikkubbe-hava-savunma-sistemleri-yarismasi",
+        "hyperloop geliştirme yarışması": "hyperloop-gelistirme-yarismasi",
+        "i̇nsansız deniz aracı yarışması": "insansiz-deniz-araci-yarismasi",
+        "i̇nsansız kara aracı yarışması": "insansiz-kara-araci-yarismasi",
+        "i̇nsansız su altı sistemleri yarışması": "insansiz-su-alti-sistemleri-yarismasi",
+        "i̇nsansız su altı sistemleri yıldızlar yarışması": "insansiz-su-alti-sistemleri-yildizlar-yarismasi",
+        "jet motor tasarım yarışması": "jet-motor-tasarim-yarismasi",
+        "kuantum teknolojileri yarışması": "kuantum-teknolojileri-yarismasi",
+        "liseler arası i̇nsansız hava araçları yarışması": "liseler-arasi-insansiz-hava-araclari-yarismasi",
+        "lise öğrencileri i̇klim değişikliği araştırma projeleri yarışması": "lise-ogrencileri-iklim-degisikligi-arastirma-projeleri-yarismasi",
+        "lise öğrencileri kutup araştırma projeleri yarışması": "lise-ogrencileri-kutup-arastirma-projeleri-yarismasi",
+        "model uydu yarışması": "model-uydu-yarismasi",
+        "nükleer enerji teknolojileri tasarım yarışması": "nukleer-enerji-teknolojileri-tasarim-yarismasi",
+        "onkolojide 3t yarışması": "onkolojide-3t-yarismasi",
+        "pardus hata yakalama ve öneri yarışması": "pardus-hata-yakalama-ve-oneri-yarismasi",
+        "robotaksi-binek otonom araç yarışması": "robotaksi-binek-otonom-arac-yarismasi",
+        "roket yarışması": "roket-yarismasi",
+        "sağlıkta yapay zeka yarışması": "saglikta-yapay-zeka-yarismasi",
+        "sanayide robotik uygulamalar yarışması": "sanayide-robotik-uygulamalar-yarismasi",
+        "sürü i̇ha yarışması": "suru-iha-yarismasi",
+        "savaşan i̇ha yıldızlar yarışması": "savasan-iha-yildizlar-yarismasi",
+        "savaşan i̇ha yarışması": "savasan-iha-yarismasi",
+        "savaşan i̇ha avcı drone yarışması": "savasan-iha-avci-drone-yarismasi",
+        "su altı roket yarışması": "su-alti-roket-yarismasi",
+        "tarım teknolojileri yarışması": "tarim-teknolojileri-yarismasi",
+        "teknofest drone şampiyonası": "teknofest-drone-sampiyonasi",
+        "teknofest mimari ve görsel tasarım yarışması": "teknofest-mimari-ve-gorsel-tasarim-yarismasi",
+        "teknofest robolig yarışması": "teknofest-robolig-yarismasi",
+        "world drone cup": "world-drone-cup",
+        "uluslararası elektrikli araç yarışları": "uluslararasi-elektrikli-arac-yarislari",
+        "uluslararası i̇nsansız hava aracı yarışması": "uluslararasi-insansiz-hava-araci-yarismasi",
+        "türkçe doğal dil i̇şleme yarışması": "turkce-dogal-dil-isleme-yarismasi",
+        "yapay zeka destekli havayolu optimizasyonu yarışması": "yapay-zeka-destekli-havayolu-optimizasyonu-yarismasi",
+        "elektronik harp yarışması": "elektronik-harp-yarismasi",
+        "maden teknolojileri yarışması": "maden-teknolojileri-yarismasi",
+        "i̇leri otonom sistemler tasarım ve operasyon yarışması": "ileri-otonom-sistemler-tasarim-ve-operasyon-yarismasi",
     }
     slug = None
     for keyword, candidate_slug in slug_map.items():
@@ -646,7 +722,7 @@ async def node_live_page_fetch(state: GraphState, settings: Settings) -> GraphSt
                 "source_priority": 0,
                 "fetched_at": __import__('datetime').datetime.now().isoformat(),
             },
-            score=1.0,
+            score=0.0,
             source_type="teknofest_site",
         )
         state["context_chunks"] = [live_chunk]
@@ -698,7 +774,7 @@ async def node_live_tavily_fallback(state: GraphState, settings: Settings) -> Gr
 async def node_live_answer_synthesizer(state: GraphState, settings: Settings) -> GraphState:
     question = state.get("rephrased_question") or state["question"]
     chunks = state.get("context_chunks", [])
-    combined_context, _ = build_context(chunks, max_total_chars=10_000)
+    combined_context, _ = build_context(chunks, max_total_chars=10_000, min_score=None)
     
     llm = _build_llm(settings, temperature=0.1, purpose="main")
 
@@ -1110,14 +1186,14 @@ def build_teknofest_graph(settings: Settings):
     workflow.add_node("hallucination_guard", hallucination_guard_node)
 
     # ---- Edges ----
-    # intent → conditional (rephrase veya direct_llm)
-    workflow.set_entry_point("intent")
+    # rephrase -> intent → conditional (local_rag veya direct_llm)
+    workflow.set_entry_point("rephrase")
+    workflow.add_edge("rephrase", "intent")
     workflow.add_conditional_edges("intent", _decide_next_after_intent, {
-        "rephrase": "rephrase",
+        "local_rag": "local_rag",
         "kisisel_llm": "kisisel_llm",
         "direct_llm": "direct_llm",
     })
-    workflow.add_edge("rephrase", "local_rag")
     workflow.add_conditional_edges("local_rag", _decide_after_local_rag, {
         "reranker": "reranker",
         "teknofest_web": "teknofest_web",

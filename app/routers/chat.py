@@ -29,6 +29,9 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
 
+class ChatSessionEditRequest(BaseModel):
+    title: str
+
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
@@ -83,6 +86,16 @@ def delete_session(session_id: str, current_user: User = Depends(get_current_use
     db.commit()
     return {"status": "success"}
 
+@router.put("/sessions/{session_id}", response_model=ChatSessionResponse)
+def edit_session(session_id: str, req: ChatSessionEditRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session.title = req.title
+    db.commit()
+    return ChatSessionResponse(id=session.id, title=session.title, created_at=session.created_at.isoformat())
+
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not req.message.strip():
@@ -95,7 +108,7 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
         new_session = ChatSession(
             id=session_id,
             user_id=current_user.id,
-            title=req.message[:30] + "..." if len(req.message) > 30 else req.message
+            title=req.message[:250]
         )
         db.add(new_session)
         db.commit()
@@ -114,18 +127,31 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
     db.add(user_msg)
     db.commit()
 
-    # Load history
-    history_records = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at.asc()).all()
-    # Build LangChain format history. We take the last 10 messages for context so we don't blow up context window.
-    # IMPORTANT: We include ALL messages up to (but not including) the current user message
+    # Load history — fetch the most recent messages for rephrase context
+    recent = (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.created_at.desc())
+        .limit(6)
+        .all()
+    )
+
+    # Build LangChain format history.
+    # Include both user AND assistant messages so the rephrase chain can resolve
+    # references to things the bot said (e.g. "parkur" → İKA yarışması parkuru).
+    # Truncate assistant content to 200 chars to keep token usage in check.
     chat_history = []
-    for r in history_records[:-1]:  # Exclude only the CURRENT message we just added
-        role = "user" if r.role == MessageRole.USER else "assistant"
-        chat_history.append({"role": role, "content": r.content})
-    
-    # Keep only last 10 for token budget (5 turns = 10 messages)
-    if len(chat_history) > 10:
-        chat_history = chat_history[-10:]
+    for m in reversed(recent):
+        # Skip the current user message we just inserted
+        if m.id == user_msg.id:
+            continue
+        
+        # Standardize roles: user -> user, ai -> assistant
+        role = "user" if m.role == MessageRole.USER else "assistant"
+        content = m.content
+        if role == "assistant" and len(content) > 200:
+            content = content[:200] + "..."
+        chat_history.append({"role": role, "content": content})
 
     # No longer using langfuse callback.
     callbacks = []

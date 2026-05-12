@@ -45,8 +45,8 @@ _RERANK_PROMPT_TEMPLATE = """You are a relevance scoring engine for a RAG system
 Given the user's query and a list of text chunks, score each chunk on its
 relevance to the query on a scale from 0 (completely irrelevant) to 10 (perfectly relevant).
 
-Return ONLY a comma-separated list of scores in the same order as the chunks.
-Example for 4 chunks: 8,3,9,1
+Return the scores wrapped in <scores> tags as a comma-separated list in the same order as the chunks.
+Example: <scores>8,3,9,1</scores>
 
 Query:
 {query}
@@ -54,7 +54,7 @@ Query:
 Chunks:
 {chunks}
 
-Scores (comma-separated, one per chunk, same order):"""
+Scores:"""
 
 
 # ---------------------------------------------------------------------------
@@ -132,22 +132,27 @@ async def _score_chunks(
 def _parse_scores(raw: str, expected_count: int) -> List[float]:
     """
     Parse comma-separated scores from the LLM response.
-
-    Falls back to equal descending scores if parsing fails or the count
-    does not match.
+    Looks for <scores>...</scores> tags first.
     """
-    # Extract all numbers (int or float) from the response
-    numbers = re.findall(r"\d+(?:\.\d+)?", raw)
+    # 1. Try to find content between <scores> tags
+    match = re.search(r"<scores>(.*?)</scores>", raw, re.DOTALL)
+    content_to_parse = match.group(1) if match else raw
+
+    # 2. Extract all numbers (int or float)
+    numbers = re.findall(r"\d+(?:\.\d+)?", content_to_parse)
+
     if len(numbers) == expected_count:
         scores = [float(n) for n in numbers]
-        # Clamp to [0, 10]
         return [max(0.0, min(10.0, s)) for s in scores]
 
     logger.warning(
-        "Reranker score count mismatch: expected %d, got %d. Falling back.",
+        "Reranker score count mismatch: expected %d, got %d. Raw response length: %d. First 200 chars: %s",
         expected_count,
         len(numbers),
+        len(raw),
+        raw[:200].replace("\n", "\\n")
     )
+    # Fallback: descending scores to preserve original order
     return list(range(expected_count, 0, -1))
 
 

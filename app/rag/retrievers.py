@@ -214,9 +214,13 @@ def retrieve_from_tavily(
                 return i
         return 99
 
-    items.sort(key=lambda r: domain_rank(r.get("url", "")))
-    trusted_items = [r for r in items if domain_rank(r.get("url", "")) < 99]
-    items = trusted_items if trusted_items else items
+    if isinstance(items, list):
+        items.sort(key=lambda r: domain_rank(r.get("url", "")))
+        trusted_items = [r for r in items if domain_rank(r.get("url", "")) < 99]
+        items = trusted_items if trusted_items else items
+    else:
+        logger.warning("Tavily results is not a list: %r", items)
+        return []
     
     for item in items:
         content = item.get("content") or item.get("snippet") or ""

@@ -221,6 +221,53 @@ const App = {
         }
     },
 
+    async editSession(id, currentTitle) {
+        const newTitle = prompt("Sohbetin yeni başlığını girin:", currentTitle);
+        if (!newTitle || newTitle === currentTitle) return;
+
+        try {
+            const res = await fetch(`/api/chat/sessions/${id}`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${this.state.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title: newTitle })
+            });
+            if (res.ok) {
+                this.loadSessions();
+                if (this.state.currentSessionId === id) {
+                    document.getElementById('current-session-title').textContent = newTitle;
+                }
+            } else {
+                alert("Başlık güncellenirken hata oluştu.");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    },
+
+    async deleteSession(id) {
+        if (!confirm("Bu sohbeti silmek istediğinize emin misiniz?")) return;
+
+        try {
+            const res = await fetch(`/api/chat/sessions/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${this.state.token}` }
+            });
+            if (res.ok) {
+                if (this.state.currentSessionId === id) {
+                    this.createNewSession();
+                }
+                this.loadSessions();
+            } else {
+                alert("Sohbet silinirken hata oluştu.");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    },
+
 
     // --- Admin logic ---
     async fetchAdminData() {
@@ -459,6 +506,20 @@ const UI = {
         document.body.classList.toggle('dark-mode');
     },
 
+    toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            sidebar.classList.toggle('collapsed');
+        }
+    },
+
+    toggleProfileMenu() {
+        const menu = document.getElementById('profile-menu');
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    },
+
     updateUser(user) {
         const emailLabel = document.getElementById('user-email');
         const avatar = document.getElementById('user-avatar');
@@ -538,8 +599,30 @@ const UI = {
         sessions.forEach(s => {
             const li = document.createElement('li');
             li.dataset.id = s.id;
-            li.textContent = s.title;
-            li.onclick = () => App.selectSession(s.id);
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'session-title-text';
+            titleSpan.textContent = s.title;
+            titleSpan.onclick = () => App.selectSession(s.id);
+            
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'session-actions';
+            
+            const editBtn = document.createElement('button');
+            editBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
+            editBtn.title = "Düzenle";
+            editBtn.onclick = (e) => { e.stopPropagation(); App.editSession(s.id, s.title); };
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+            deleteBtn.title = "Sil";
+            deleteBtn.onclick = (e) => { e.stopPropagation(); App.deleteSession(s.id); };
+            
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(deleteBtn);
+            
+            li.appendChild(titleSpan);
+            li.appendChild(actionsDiv);
             ul.appendChild(li);
         });
     },
@@ -608,8 +691,14 @@ const UI = {
             <div class="msg-inner">
                 <div class="msg-avatar">AI</div>
                 <div class="msg-content">
-                    <div class="skeleton"></div>
-                    <div class="skeleton" style="width: 40%"></div>
+                    <div class="rocket-loader">
+                        <svg class="rocket-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+                            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+                            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+                            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+                        </svg>
+                    </div>
                 </div>
             </div>
         `;

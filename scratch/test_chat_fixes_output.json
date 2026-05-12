@@ -1,0 +1,67 @@
+[
+  {
+    "query": "İKA yarışması için daha fazla bilgi verir misin",
+    "status": 200,
+    "response": {
+      "session_id": "02c25e5e-2ab3-4f44-96f3-59d3ca95abaa",
+      "answer": "İnsansız Kara Aracı Yarışması, TEKNOFEST'in heyecan verici bir parçası olarak, üniversite öğrencilerinin (ön lisans, lisans, yüksek lisans ve doktora) takım halinde katılabileceği bir yarışmadır. Bu yarışmada, takımların geliştirdiği insansız kara araçlarının zorlu arazi ve görev parkurlarında belirlenen senaryoları başarıyla tamamlaması hedeflenmektedir. \n\n### Yarışmanın Amacı\nYarışmanın amacı, insansız kara araçlarının harp koşullarında başından geçecek olayların parkur ortamında gerçekleştirilmesidir. Araçların uzaktan kontrollü ve tam otonom görevleri yerine getirebilecek şekilde tasarlanması ve geliştirilmesi beklenmektedir.\n\n### Katılım Koşulları\n- Takımlar en az 3, en fazla 15 kişiden oluşmalıdır.\n- Yarışmaya katılmak için başvuruların yapılması gerekmektedir.\n\n### Değerlendirme Aşamaları\nYarışma sürecinde takımların aşağıdaki aşamaları tamamlaması gerekecek:\n1. Teknik Yeterlik Formu\n2. Kritik Tasarım Raporu\n3. Araç Kanıt Videosu\n4. Teknik Sunum ve Final Aşaması\n\n### Önemli Tarihler\n- **Son Başvuru Tarihi:** 28 Şubat 2026\n- **Teknik Yeterlik Formu Teslimi:** 31 Mart 2026\n- **Kritik Tasarım Raporu Teslimi:** 1 Haziran 2026\n- **Finalistlerin Açıklanması:** 31 Temmuz 2026\n- **Final Yarışmaları:** Ağustos-Eylül 2026\n- **TEKNOFEST Tarihleri:** 30 Eylül - 4 Ekim 2026\n\n### Ödüller\nYarışmada dereceye giren takımlara verilecek ödüller:\n- **Birinci:** 300.000 ₺\n- **İkinci:** 250.000 ₺\n- **Üçüncü:** 200.000 ₺\n\nBu yarışma, katılımcılara sadece ödül kazanma fırsatı sunmakla kalmayıp, aynı zamanda teknik becerilerini geliştirme ve sektördeki profesyonellerle tanışma imkanı da sağlamaktadır. Eğer başka bir sorunuz varsa, sormaktan çekinmeyin! Başarılar dilerim!",
+      "sources": [
+        {
+          "type": "local_docs",
+          "metadata": {
+            "source_priority": 3,
+            "document_type": "pdf",
+            "source": "D:\\TEKNOFEST-RAG-Chatbot\\RAG\\raw\\2026_İnsansız_Kara_Aracı_Türkçe_Şartname_Onarıldı_8iTh5.pdf",
+            "chunk_index": 0,
+            "total_chunks": 2,
+            "page_number": 19,
+            "ingested_at": "2026-05-11T19:53:54.512923+00:00",
+            "content_hash": "e8510168a043add13604ee224c176bbc93e95aeffeca074d8176ad2fd2eb4c6d",
+            "rerank_score": 20
+          },
+          "score": 0.455,
+          "content_preview": "• Dışarıdan herhangi bir bilgilendirme ve yönlendirmenin anlaşılması durumunda  hakem kararıyla yarışmacı takım yarışma dışı bırakılabilecektir.  • Yarışma alanı içe risine konulacak kameralar ve hake",
+          "trust_level": "high",
+          "trust_label": "Resmi Doküman (Yerel)"
+        }
+      ],
+      "route_taken": "local"
+    }
+  },
+  {
+    "query": "parkur hakkında daha fazla bilgi var mı",
+    "status": 200,
+    "response": {
+      "session_id": "02c25e5e-2ab3-4f44-96f3-59d3ca95abaa",
+      "answer": "İnsansız Kara Aracı Yarışması, katılımcıların uzaktan kontrollü ve tam otonom araçlar geliştirmesini hedefleyen heyecan verici bir etkinliktir. Yarışma parkuru, zorlu arazi koşullarını ve çeşitli görevleri içermektedir. İşte parkur hakkında bazı detaylar:\n\n1. **Parkur Yapısı**: Yarışma parkuru, belirli aşamalardan oluşmakta ve her aşama için özel görevler tanımlanmaktadır. Parkur, engebeli ve düz alanlardan oluşmakta, araçların bu alanlarda başarılı bir şekilde görevlerini yerine getirmesi beklenmektedir.\n\n2. **Araç Kontrol Yöntemleri**: Yarışmada araçlar, uzaktan kontrollü (manuel) ve tam otonom olarak iki farklı yöntemle kontrol edilecektir. Bu, katılımcıların hem manuel hem de otomatik sistemler geliştirmesini gerektirmektedir.\n\n3. **Görevler**: Parkurda, lazer işaretleme ve temsili atış gibi görevler yer alacak. Bu görevler, araçların algılayıcıları ve kontrol sistemleri ile entegre bir şekilde çalışmasını gerektirecek.\n\n4. **Araç Özellikleri**: Yarışmaya katılacak araçların, zorlu arazi koşullarına uygun paletli veya tekerlekli bir yapıya sahip olması beklenmektedir. Araç boyutları ve diğer teknik özellikler, yarışma şartnamesinde belirtilen kriterlere uygun olmalıdır.\n\nBu bilgiler, yarışmanın genel yapısını ve parkur detaylarını anlamanızı sağlayacaktır. Eğer daha fazla bilgiye ihtiyaç duyarsanız, belirli konularda sorularınızı yanıtlamaktan mutluluk duyarım!",
+      "sources": [
+        {
+          "type": "local_docs",
+          "metadata": {
+            "total_chunks": 2,
+            "document_type": "pdf",
+            "source": "D:\\TEKNOFEST-RAG-Chatbot\\RAG\\raw\\2026_İnsansız_Kara_Aracı_Türkçe_Şartname_Onarıldı_8iTh5.pdf",
+            "chunk_index": 1,
+            "content_hash": "cd9927891a7b48de33cb1920532ab3cf0fcf69bd897ee0dd43d0d0904bf7c45d",
+            "ingested_at": "2026-05-11T19:53:54.512923+00:00",
+            "page_number": 6,
+            "source_priority": 3,
+            "rerank_score": 20
+          },
+          "score": 0.352,
+          "content_preview": "uzaktan−kontrollü ve tam−otonom şeklinde 2 farklı araç kontrol yöntemi vasıtasıyla  görevleri başarı ile tamamlaması beklenmektedir. Yarışma parkuruna dair detaylar  6−Yarışma Kurgusu , İnsansız Kara ",
+          "trust_level": "high",
+          "trust_label": "Resmi Doküman (Yerel)"
+        }
+      ],
+      "route_taken": "local"
+    }
+  },
+  {
+    "query": "yarışma parkuru hakkında daha fazla bilgi mevcut mu",
+    "status": 500,
+    "response": {
+      "detail": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kpjys3n5ezv85nyjkd4shcpx` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99743, Requested 1875. Please try again in 23m17.952s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+    }
+  }
+]
