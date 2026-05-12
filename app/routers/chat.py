@@ -29,6 +29,9 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
 
+class ChatSessionEditRequest(BaseModel):
+    title: str
+
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
@@ -83,6 +86,16 @@ def delete_session(session_id: str, current_user: User = Depends(get_current_use
     db.commit()
     return {"status": "success"}
 
+@router.put("/sessions/{session_id}", response_model=ChatSessionResponse)
+def edit_session(session_id: str, req: ChatSessionEditRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session.title = req.title
+    db.commit()
+    return ChatSessionResponse(id=session.id, title=session.title, created_at=session.created_at.isoformat())
+
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not req.message.strip():
@@ -95,7 +108,7 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
         new_session = ChatSession(
             id=session_id,
             user_id=current_user.id,
-            title=req.message[:30] + "..." if len(req.message) > 30 else req.message
+            title=req.message[:250]
         )
         db.add(new_session)
         db.commit()

@@ -1,13 +1,23 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  api:
-    build: .
+  chatbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: teknofest-rag-chatbot
     ports:
-      - "8010:8010"
-    volumes:
-      - .:/app
+      - "8000:8000"
     env_file:
       - .env
-    environment:
-      - PYTHONUNBUFFERED=1
+    volumes:
+      # Persist RAG indexes across container restarts
+      - rag_data:/app/RAG/chroma_local_docs
+      - rag_site_data:/app/RAG/chroma_teknofest_site
+      # Mount local documents (optional: add your PDFs/DOCX/TXT/MD here)
+      - ./RAG/raw:/app/RAG/raw
+    restart: unless-stopped
+
+volumes:
+  rag_data:
+  rag_site_data:
