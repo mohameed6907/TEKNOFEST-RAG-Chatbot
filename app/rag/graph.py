@@ -609,6 +609,7 @@ async def node_live_page_fetch(state: GraphState, settings: Settings) -> GraphSt
         "sağlıkta yapay": "saglikta-yapay-zeka-yarismasi",
         "model uydu": "model-uydu-yarismasi",
         "roket": "model-roket-yarismasi",
+        "kuantum": "kuantum-teknolojileri-yarismasi",
     }
     slug = None
     for keyword, candidate_slug in slug_map.items():
@@ -646,7 +647,7 @@ async def node_live_page_fetch(state: GraphState, settings: Settings) -> GraphSt
                 "source_priority": 0,
                 "fetched_at": __import__('datetime').datetime.now().isoformat(),
             },
-            score=1.0,
+            score=0.0,
             source_type="teknofest_site",
         )
         state["context_chunks"] = [live_chunk]
@@ -698,7 +699,7 @@ async def node_live_tavily_fallback(state: GraphState, settings: Settings) -> Gr
 async def node_live_answer_synthesizer(state: GraphState, settings: Settings) -> GraphState:
     question = state.get("rephrased_question") or state["question"]
     chunks = state.get("context_chunks", [])
-    combined_context, _ = build_context(chunks, max_total_chars=10_000)
+    combined_context, _ = build_context(chunks, max_total_chars=10_000, min_score=None)
     
     llm = _build_llm(settings, temperature=0.1, purpose="main")
 

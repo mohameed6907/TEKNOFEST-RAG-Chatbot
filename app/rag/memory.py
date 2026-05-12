@@ -21,10 +21,10 @@ Kullanıcının yeni sorusunu ve geçmiş konuşmayı alarak,
 soruyu önceki bağlama ihtiyaç duymadan TAMAMEN ANLAŞILABİLECEK şekilde yeniden yaz.
 
 KRITIK KURALLAR:
-1. "Bu kategori", "benim seçtiğim", "önceki seçim", "daha önce belirttiğim" gibi REFERENSLARı 
+1. "Bu kategori", "benim seçtiğim", "önceki seçim", "daha önce belirttiğim" gibi REFERENSLARI 
    geçmişten AÇIKÇA çıkararak yerine yaz
 2. TEKNOFEST kategorisi adlarını tamamıyla yaz
-3. Özet yapmadan, tüm temel bilgiyi yeniden yapılandır
+3. "verebilir misin", "peki", "lütfen", "hakkında bilgi" gibi sohbet kelimelerini at, sadece net ARAMA TERİMLERİ üret.
 4. Sadece yeniden yazılmış soruyu döndür, açıklama ekleme
 
 ÖRNEK:
@@ -32,8 +32,8 @@ Geçmiş:
   Kullanıcı: ben sağlıkta yapay zeka alanında yarışacağım
   Asistan: Sağlıkta yapay zeka kategorisinde...
 
-Yeni soru: bu kategoride nelere dikkat etmeliyim
-Çıkış: Sağlıkta yapay zeka kategorisinde nelere dikkat etmeliyim""",
+Yeni soru: peki bu kategoride nelere dikkat etmeliyim
+Çıktı: TEKNOFEST Sağlıkta Yapay Zeka kategorisi dikkat edilmesi gerekenler""",
     ),
     (
         "human",
