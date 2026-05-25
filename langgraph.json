@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "teknofest_rag": "./app/rag/graph.py:graph"
+  },
+  "env": ".env"
+}

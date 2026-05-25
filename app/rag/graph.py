@@ -1336,9 +1336,16 @@ def export_graph_png(settings: Settings, output_path: str | Path) -> Path:
     return path
 
 
-if __name__ == "__main__":
-    from app.config import get_settings as _get_settings
+# ---------------------------------------------------------------------------
+# LangGraph Studio / External Tools Export
+# ---------------------------------------------------------------------------
 
-    _settings = _get_settings()
-    out = export_graph_png(_settings, Path(__file__).resolve().parent / "langgraph_teknofest.png")
+from app.config import get_settings as _get_settings
+
+# Create a default compiled graph instance for LangGraph Studio
+_default_settings = _get_settings()
+graph = build_teknofest_graph(settings=_default_settings)
+
+if __name__ == "__main__":
+    out = export_graph_png(_default_settings, Path(__file__).resolve().parent / "langgraph_teknofest.png")
     print(f"LangGraph PNG yazıldı: {out}")
