@@ -812,7 +812,7 @@ async def node_live_answer_synthesizer(state: GraphState, settings: Settings) ->
         res = await llm.ainvoke([
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": user_prompt},
-        ])
+        ], config={"tags": ["final_synthesizer"]})
         answer = (res.content or "").strip()
     except Exception as exc:
         logger.error("Live fetch Step 3 LLM failed: %s", exc)
@@ -861,7 +861,7 @@ async def node_kisisel_llm(state: GraphState, settings: Settings) -> GraphState:
     ans_res = await llm_gen.ainvoke([
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": state["question"]}
-    ])
+    ], config={"tags": ["final_synthesizer"]})
     state["answer"] = ans_res.content
     state["route_taken"] = "kisisel"
     state["context_chunks"] = []
@@ -913,7 +913,7 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
         res = await llm.ainvoke([
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": user_prompt},
-        ])
+        ], config={"tags": ["final_synthesizer"]})
         answer_text = (res.content or "").strip()
     else:
         sys_prompt = (
@@ -932,7 +932,7 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
         res = await llm.ainvoke([
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": question},
-        ])
+        ], config={"tags": ["final_synthesizer"]})
         answer_text = (res.content or "").strip()
 
     if _contains_disallowed_redirect(answer_text):
@@ -1324,6 +1324,101 @@ async def run_graph(
         "sources": sources_list,
         "route_taken": final_state.get("route_taken", "unknown"),
         "meta": final_state.get("meta", {}),
+    }
+
+
+async def run_graph_stream(
+    graph,
+    question: str,
+    chat_history: List[Dict[str, str]] = None,
+    callbacks: list | None = None,
+    metadata: Dict[str, Any] | None = None,
+):
+    """Asynchronously execute graph.astream_events and yield tokens and metadata."""
+    initial_state: GraphState = {
+        "question": question,
+        "chat_history": chat_history or [],
+        "rephrased_question": "",
+    }
+
+    invoke_config: Dict[str, Any] = {}
+    if is_tracing_enabled():
+        invoke_config["run_name"] = "teknofest-rag-query"
+        invoke_config["metadata"] = {"question_preview": question[:120]}
+
+    if metadata:
+        invoke_config.setdefault("metadata", {}).update(metadata)
+
+    if callbacks:
+        invoke_config["callbacks"] = callbacks
+
+    invoke_kwargs: Dict[str, Any] = {}
+    if invoke_config:
+        invoke_kwargs["config"] = invoke_config
+
+    final_state = None
+    async for event in graph.astream_events(initial_state, version="v2", **invoke_kwargs):
+        kind = event["event"]
+        tags = event.get("tags", [])
+        
+        # Stream the tokens of the final synthesizer
+        if kind == "on_chat_model_stream" and "final_synthesizer" in tags:
+            content = event["data"]["chunk"].content
+            if content:
+                yield {"type": "token", "content": content}
+                
+        # Intercept the end of the Pregel graph chain to get final state
+        elif kind == "on_chain_end":
+            output = event["data"].get("output")
+            if isinstance(output, dict) and "answer" in output and "context_chunks" in output:
+                final_state = output
+
+    # Build sources_list if final_state is captured
+    sources_list = []
+    route_taken = "unknown"
+    if final_state:
+        route_taken = final_state.get("route_taken", "unknown")
+        seen_sources = set()
+        for ch in final_state.get("context_chunks", []):
+            src_id = (
+                ch.metadata.get("source")
+                or ch.metadata.get("url")
+                or ch.metadata.get("crawl_source")
+                or ""
+            )
+            if src_id and src_id in seen_sources:
+                continue
+            if src_id:
+                seen_sources.add(src_id)
+
+            source_entry = {
+                "type": ch.source_type,
+                "metadata": ch.metadata,
+                "score": round(ch.score, 3) if ch.score is not None else None,
+                "content_preview": ch.content[:200] if hasattr(ch, "content") else "",
+            }
+
+            if ch.source_type == "local_docs":
+                source_entry["trust_level"] = "high"
+                source_entry["trust_label"] = "Resmi Doküman (Yerel)"
+            elif ch.source_type == "teknofest_site":
+                source_entry["trust_level"] = "high"
+                source_entry["trust_label"] = "TEKNOFEST Resmi Sitesi"
+            elif ch.source_type == "tavily":
+                url = ch.metadata.get("url", "")
+                if any(d in url for d in ["teknofest.org", "cdn.teknofest.org", ".gov.tr"]):
+                    source_entry["trust_level"] = "high"
+                    source_entry["trust_label"] = "Resmi Kaynak"
+                else:
+                    source_entry["trust_level"] = "medium"
+                    source_entry["trust_label"] = "Web Kaynağı"
+            sources_list.append(source_entry)
+
+    yield {
+        "type": "done",
+        "sources": sources_list,
+        "route_taken": route_taken,
+        "meta": final_state.get("meta", {}) if final_state else {},
     }
 
 
