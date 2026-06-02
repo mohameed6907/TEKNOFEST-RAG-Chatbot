@@ -142,7 +142,7 @@ async def run_agent_node(
             else:
                 llm_to_use = llm_with_tools
 
-            response: AIMessage = await llm_to_use.ainvoke(messages)
+            response: AIMessage = await llm_to_use.ainvoke(messages, config={"tags": ["final_synthesizer"]})
         except Exception as exc:  # noqa: BLE001
             logger.error("Agent LLM çağrısı başarısız (iter %d): %s", iteration, exc)
             return "Şu an cevap üretiminde teknik bir aksaklık oluştu. Sorunu giderirken aynı soruyu biraz daha kısa yazarak tekrar deneyebilirsin."
@@ -181,7 +181,7 @@ async def run_agent_node(
     # Max iterasyona ulaşıldı — son LLM cevabını almayı dene
     logger.warning("Agent max_iterations=%d'e ulaştı", MAX_ITERATIONS)
     try:
-        final: AIMessage = await llm_with_tools.ainvoke(messages)
+        final: AIMessage = await llm_with_tools.ainvoke(messages, config={"tags": ["final_synthesizer"]})
         return _strip_redirect_phrases(final.content or "Bu soruyu mevcut bağlamla netleştiremedim. İstersen kategori veya yıl bilgisini ekleyerek tekrar sor; daha nokta atışı cevaplayayım.")
     except Exception:  # noqa: BLE001
         return "Bu soruyu mevcut bağlamla netleştiremedim. İstersen kategori veya yıl bilgisini ekleyerek tekrar sor; daha nokta atışı cevaplayayım."

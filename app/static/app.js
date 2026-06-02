@@ -206,25 +206,77 @@ const App = {
                 })
             });
 
-            const data = await res.json();
-
             if (!res.ok) {
-                // API hata döndürdü (4xx / 5xx) — data.answer undefined olur, marked.parse patlar
-                const errMsg = data?.detail || `Sunucu hatası (${res.status})`;
+                let errMsg = `Sunucu hatası (${res.status})`;
+                try {
+                    const errData = await res.json();
+                    errMsg = errData?.detail || errMsg;
+                } catch (_) {}
                 UI.removeMessage(tempId);
                 UI.appendMessage({ role: 'ai', content: `⚠️ ${errMsg}` });
                 UI.scrollToBottom();
                 return;
             }
 
-            if (!this.state.currentSessionId) {
-                this.state.currentSessionId = data.session_id;
-                this.loadSessions(); // refresh sidebar
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            let fullText = '';
+            let isFirstSessionLoad = false;
+            let finalSources = [];
+            let finalRouteTaken = 'unknown';
+            let isFirstToken = true;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // save incomplete line
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+                    try {
+                        const payload = JSON.parse(trimmed.slice(6));
+
+                        if (payload.type === 'token') {
+                            if (isFirstToken) {
+                                // Transition from rocket skeleton to AI text container on first token
+                                UI.removeMessage(tempId);
+                                UI.appendMessage({ role: 'ai', content: '' }, tempId);
+                                UI.scrollToBottom();
+                                isFirstToken = false;
+                            }
+                            fullText += payload.content;
+                            UI.updateStreamingMessage(tempId, fullText);
+                            UI.scrollToBottom();
+                        } else if (payload.type === 'done') {
+                            if (!this.state.currentSessionId) {
+                                this.state.currentSessionId = payload.session_id;
+                                isFirstSessionLoad = true;
+                            }
+                            finalSources = payload.sources || [];
+                            finalRouteTaken = payload.route_taken || 'unknown';
+                        } else if (payload.type === 'error') {
+                            throw new Error(payload.detail);
+                        }
+                    } catch (err) {
+                        console.error('SSE JSON error:', err);
+                    }
+                }
             }
-            
+
+            // Final render to add sources correctly
             UI.removeMessage(tempId);
-            UI.appendMessage({ role: 'ai', content: data.answer ?? '', sources: data.sources });
+            UI.appendMessage({ role: 'ai', content: fullText, sources: finalSources }, tempId);
             UI.scrollToBottom();
+
+            if (isFirstSessionLoad) {
+                this.loadSessions();
+            }
 
         } catch (err) {
             UI.removeMessage(tempId);
@@ -733,6 +785,16 @@ const UI = {
     scrollToBottom() {
         const c = document.getElementById('messages-container');
         c.scrollTop = c.scrollHeight;
+    },
+
+    updateStreamingMessage(id, text) {
+        const el = document.querySelector(`#${id} .msg-content`);
+        if (el) {
+            const parsed = (window.marked && text)
+                ? marked.parse(text)
+                : `<p>${text.replace(/\n/g, "<br>")}</p>`;
+            el.innerHTML = parsed;
+        }
     }
 }
 
