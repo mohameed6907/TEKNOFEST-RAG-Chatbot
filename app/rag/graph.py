@@ -517,7 +517,7 @@ def node_context_builder(state: GraphState, settings: Settings) -> GraphState:
     chunks = state.get("context_chunks") or state.get("retrieved_chunks", [])
     context_str, selected = build_context(
         chunks,
-        max_total_chars=6_000,
+        max_total_chars=12_000,
         min_score=None,   # score filtering already done via confidence threshold
         min_rerank=None,  # rerank threshold left to the reranker node
     )
@@ -899,6 +899,9 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
             "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
             "Asla kaynaklarda olmayan bir rakam üretme.\n"
             "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
+            "Cevabını yapısal olarak organize et: başlıklar, madde listeleri veya tablolar kullan.\n"
+            "Bağlamdaki TÜM ilgili detayları ver — tek paragraflık belirsiz bir cevap yerine kapsamlı bir cevap ver.\n"
+            "Tarih, yer, ödül miktarı, kategori gibi somut veriler varsa mutlaka belirt.\n"
             "Cevabın sonunda her zaman kaynak bilgisini belirt.\n"
             "Türkçe cevapla."
         )
@@ -920,6 +923,9 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
             "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
             "Asla kaynaklarda olmayan bir rakam üretme.\n"
             "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
+            "Cevabını yapısal olarak organize et: başlıklar, madde listeleri veya tablolar kullan.\n"
+            "Bağlamdaki TÜM ilgili detayları ver — tek paragraflık belirsiz bir cevap yerine kapsamlı bir cevap ver.\n"
+            "Tarih, yer, ödül miktarı, kategori gibi somut veriler varsa mutlaka belirt.\n"
             "Cevabın sonunda her zaman kaynak bilgisini belirt.\n"
             "Türkçe cevapla."
         )

@@ -51,17 +51,18 @@ def _build_agent_system_prompt() -> str:
 
 Bugünün tarihi: {current_date}
 
-ÖNEMLİ KURAL: Kullanıcı spesifik bir yarışmanın ödüllerini, kazananlarını, tarihlerini veya kurallarını soruyorsa, bağlamda (context) eski veya yeni bir cevap görsen BİLE, ASLA doğrudan cevap verme. MUTLAKA ÖNCE `fetch_teknofest_competition_page` aracını kullanarak o yarışmanın güncel web sayfasını çek ve cevabı oradan ver. Aracın argümanı yarışmanın slug'ı olmalıdır (örnek: 'insansiz-kara-araci-yarismasi').
+CEVAP KURALLARI — BU KURALLARI KESİNLİKLE UYGULA:
+1. Sağlanan bağlamdan TÜM ilgili bilgileri kullan — kısa tutma, kapsamlı ol
+2. Bilgiyi mantıklı bölümlere ayır: başlık, madde listesi, tablo formatı kullan
+3. Tarih, yer, ödül, kategori gibi somut veriler varsa mutlaka belirt
+4. Bağlamda olmayan bir bilgiyi uydurma — ama bağlamda olan her şeyi kullan
+5. Cevabın sonunda kullanıcıya faydalı olacak bir sonraki adımı öner
+6. Her zaman Türkçe cevapla
+7. "Daha fazla bilgi için belirtin" ile bitirme — zaten elindeki bilgiyi ver
 
-KATIŞTI RAG KURALLAR - BU KURALLARI KESİNLİKLE UYGULA:
+ÖNEMLİ KURAL: Kullanıcı spesifik bir yarışmanın ödüllerini, kazananlarını, tarihlerini, yerini veya kurallarını soruyorsa, bağlamda (context) eski veya yeni bir cevap görsen BİLE, ASLA doğrudan cevap verme. MUTLAKA ÖNCE `fetch_teknofest_competition_page` aracını kullanarak o yarışmanın güncel web sayfasını çek ve cevabı oradan ver. Aracın argümanı yarışmanın slug'ı olmalıdır (örnek: 'insansiz-kara-araci-yarismasi').
 
-1. YALNIZCA sağlanan bağlamı kullan (bağlamda web aramalarından veya araçlardan gelen güncel bilgiler olabilir, bunları çekinmeden kullan).
-2. ASLA bilgi uydurma, tahmin etme veya rakam üretme.
-3. Bağlamda olmayan bir bilgiyi kendin üretme. Eğer bağlamda sorunun cevabı (örneğin ödül miktarı) yoksa, açıkça bilmediğini belirt.
-4. Her zaman Türkçe cevapla.
-5. Her zaman bağlamdan kaynaklarını belirt.
-
-YASAK İFADELER - BU İFADELERİ ASLA KULLANMA:
+YASAK İFADELER — BU İFADELERİ ASLA KULLANMA:
 - "Daha fazla bilgi için [X sitesini] ziyaret edebilirsin/edebilirsiniz"
 - "Resmi web sitesine bakmanı öneririm"
 - "[URL] adresinden ulaşabilirsin"
@@ -130,7 +131,12 @@ async def run_agent_node(
 
     lower_q = question.lower()
     needs_competition_tool = any(k in lower_q for k in [
-        "ödül", "odul", "kazanan", "birinci", "ikinci", "üçüncü", "sonuç", "şampiyon", "kim oldu", "kim kazandı", "kimler"
+        "ödül", "odul", "kazanan", "birinci", "ikinci", "üçüncü", "sonuç", "şampiyon",
+        "kim oldu", "kim kazandı", "kimler",
+        "nerede", "hangi şehir", "hangi sehir", "mekan", "konum", "venue",
+        "ne zaman", "tarih", "deadline", "son başvuru", "son basvuru", "başvuru tarihi", "basvuru tarihi",
+        "katılım koşulları", "katilim kosullari", "katılım şartları", "katilim sartlari",
+        "kuralları", "kurallari", "nasıl katılırım", "nasil katilirim",
     ])
 
     for iteration in range(MAX_ITERATIONS):
