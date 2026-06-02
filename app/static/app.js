@@ -74,6 +74,19 @@ const App = {
         localStorage.removeItem('access_token');
         this.state.token = null;
         this.state.user = null;
+        this.state.currentSessionId = null;
+        this.state.sessions = [];
+        
+        // Reset UI Views & Tabs
+        UI.switchMainTab('chat');
+        UI.clearMessages();
+        
+        const sessionList = document.getElementById('session-list');
+        if (sessionList) sessionList.innerHTML = '';
+        
+        const sessionTitle = document.getElementById('current-session-title');
+        if (sessionTitle) sessionTitle.textContent = "Yeni Sohbet";
+        
         UI.showView('auth-view');
     },
 

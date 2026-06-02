@@ -16,7 +16,7 @@
     <!-- App CSS -->
     <link rel="stylesheet" href="/static/style.css?v=8">
 </head>
-<body class="dark-mode">
+<body>
 
     <!-- Auth View -->
     <div id="auth-view" class="view-container">
@@ -66,7 +66,7 @@
             </div>
             
             <div class="sidebar-footer">
-                <div class="user-profile-btn" onclick="UI.toggleProfileMenu()">
+                <div class="user-profile-btn">
                     <div class="user-info">
                         <div class="avatar" id="user-avatar">?</div>
                         <div class="details">
@@ -76,9 +76,9 @@
                     </div>
                 </div>
                 <!-- Profile Dropdown -->
-                <div id="profile-menu" class="profile-menu hidden">
-                    <button id="admin-btn" class="menu-btn hidden" onclick="UI.switchMainTab('admin'); UI.toggleProfileMenu()">Admin Paneli</button>
-                    <button id="chat-btn" class="menu-btn" onclick="UI.switchMainTab('chat'); UI.toggleProfileMenu()">Sohbet</button>
+                <div id="profile-menu" class="profile-menu">
+                    <button id="admin-btn" class="menu-btn hidden" onclick="UI.switchMainTab('admin')">Admin Paneli</button>
+                    <button id="chat-btn" class="menu-btn" onclick="UI.switchMainTab('chat')">Sohbet</button>
                     <button class="menu-btn logout" onclick="App.logout()">Çıkış Yap</button>
                 </div>
             </div>
