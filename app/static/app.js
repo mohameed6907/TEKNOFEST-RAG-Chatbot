@@ -12,6 +12,14 @@ const App = {
     },
 
     init() {
+        // Initialize Theme from localStorage or system preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+
         if (this.state.token) {
             this.fetchMe();
         } else {
@@ -569,6 +577,8 @@ const UI = {
 
     toggleTheme() {
         document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
     },
 
     toggleSidebar() {
