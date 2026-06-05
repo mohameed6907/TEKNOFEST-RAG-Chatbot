@@ -4,14 +4,14 @@ import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ChatSession, Message, MessageRole, User
 from app.auth import get_current_user
-from app.rag.graph import run_graph, build_teknofest_graph
+from app.rag.graph import run_graph, run_graph_stream, build_teknofest_graph
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def edit_session(session_id: str, req: ChatSessionEditRequest, current_user: Use
     db.commit()
     return ChatSessionResponse(id=session.id, title=session.title, created_at=session.created_at.isoformat())
 
-@router.post("", response_model=ChatResponse)
+@router.post("")
 async def chat(req: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="message is empty")
@@ -137,9 +137,6 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
     )
 
     # Build LangChain format history.
-    # Include both user AND assistant messages so the rephrase chain can resolve
-    # references to things the bot said (e.g. "parkur" → İKA yarışması parkuru).
-    # Truncate assistant content to 200 chars to keep token usage in check.
     chat_history = []
     for m in reversed(recent):
         # Skip the current user message we just inserted
@@ -153,43 +150,47 @@ async def chat(req: ChatRequest, current_user: User = Depends(get_current_user),
             content = content[:200] + "..."
         chat_history.append({"role": role, "content": content})
 
-    # No longer using langfuse callback.
-    callbacks = []
+    async def event_generator():
+        accumulated_answer = []
+        sources = []
+        route_taken = "unknown"
+        
+        try:
+            async for chunk in run_graph_stream(
+                graph=graph,
+                question=req.message,
+                chat_history=chat_history,
+                metadata={
+                    "session_id": session_id,
+                    "user_id": str(current_user.id),
+                    "user_role": current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role),
+                }
+            ):
+                if chunk["type"] == "token":
+                    accumulated_answer.append(chunk["content"])
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+                elif chunk["type"] == "done":
+                    sources = chunk["sources"]
+                    route_taken = chunk["route_taken"]
+                    
+            final_answer = "".join(accumulated_answer)
+            
+            # Save AI message to DB
+            ai_msg = Message(
+                session_id=session_id,
+                role=MessageRole.AI,
+                content=final_answer,
+                route_taken=route_taken,
+                sources_json=json.dumps(sources) if sources else None
+            )
+            db.add(ai_msg)
+            db.commit()
+            
+            # Yield final done packet
+            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'sources': sources, 'route_taken': route_taken})}\n\n"
+            
+        except Exception as exc:
+            logger.error(f"Error in stream: {exc}")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
 
-    # Run LangGraph with history, callbacks, and session metadata
-    try:
-        result = await run_graph(
-            graph=graph,
-            question=req.message,
-            chat_history=chat_history,
-            callbacks=callbacks,
-            metadata={
-                "session_id": session_id,
-                "user_id": str(current_user.id),
-                "user_role": current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role),
-            },
-        )
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    answer = result.get("answer", "")
-    sources = result.get("sources", [])
-    route_taken = result.get("route_taken", "unknown")
-
-    # Save AI message
-    ai_msg = Message(
-        session_id=session_id,
-        role=MessageRole.AI,
-        content=answer,
-        route_taken=route_taken,
-        sources_json=json.dumps(sources) if sources else None
-    )
-    db.add(ai_msg)
-    db.commit()
-
-    return ChatResponse(
-        session_id=session_id,
-        answer=answer,
-        sources=sources,
-        route_taken=route_taken
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
