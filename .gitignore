@@ -79,3 +79,4 @@ wheels
 RAG/eval_log.jsonl
 chat_doc.md
 .venv_win
+report
