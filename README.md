@@ -27,6 +27,10 @@ Bu proje, TEKNOFEST Havacılık, Uzay ve Teknoloji Festivali hakkındaki sorular
 
 Sistem, LangGraph tarafından yönetilen 8 aşamalı bir durum makinesidir. Durum, `GraphState` adında bir `TypedDict` nesnesinde tutulur.
 
+<p align="center">
+  <img src="pictures/system_architecture.png" alt="Sistem Mimarisi" width="90%">
+</p>
+
 ### 📋 GraphState Şeması
 
 ```python
@@ -78,6 +82,10 @@ Kullanıcı Sorusu (UI)
 
 Sistem kullanıcı yetkilendirmesi ve geçmiş oturumların takibi için SQLite kullanır.
 
+<p align="center">
+  <img src="pictures/database_schema.png" alt="Veritabanı İlişkisel Şeması" width="70%">
+</p>
+
 ### SQLite Tabloları
 
 #### 1. `users` Tablosu
@@ -123,6 +131,20 @@ Sistem, JWT (JSON Web Tokens) tabanlı güvenli bir mimari kullanır:
 * **Misafir Girişi (Guest Login):** Şifresiz, geçici bir oturum oluşturur. `is_guest=True` olarak kullanıcı kaydeder ve 24 saatlik geçerli token üretir.
 * **Üye Girişi (Register/Login):** bcrypt algoritması ile hashlendikten sonra şifre kaydedilir. Giriş sonrası 7 günlük `access_token` döner.
 * **Token Yapısı:** Payload içerisinde `sub` (user_id), `role` (USER/ADMIN), `exp` (son kullanma süresi) ve `iat` (üretim süresi) yer alır.
+
+---
+
+## 🎨 Arayüz Görselleri
+
+Sistem, modern ve duyarlı (responsive) bir tek sayfalık web arayüzü ile birlikte gelir. Kullanıcılar güvenli bir şekilde kaydolabilir, giriş yapabilir veya konuk (guest) olarak sisteme erişebilir.
+
+| Giriş Sayfası | Sohbet Arayüzü (Boş) |
+| :---: | :---: |
+| <img src="pictures/login_page.png" alt="Giriş Ekranı" width="100%"> | <img src="pictures/chat_empty.png" alt="Boş Sohbet Ekranı" width="100%"> |
+
+| Sohbet Akışı (Mesajlaşma) | Yönetici Kontrol Paneli (Admin) |
+| :---: | :---: |
+| <img src="pictures/chat_conversation.png" alt="Aktif Sohbet Akışı" width="100%"> | <img src="pictures/admin_dashboard.png" alt="Yönetici Paneli" width="100%"> |
 
 ---
 
@@ -331,6 +353,32 @@ d:\TEKNOFEST-RAG-Chatbot/
 ├── requirements.txt          # Python bağımlılık listesi
 └── README.md                 # Bu dosya
 ```
+
+---
+
+## 📊 Deneysel Sonuçlar ve Performans Metrikleri
+
+Yapılan otomatik ve manuel testler, sistemin yüksek hassasiyet, düşük halüsinasyon oranı ve kararlı gecikme süreleriyle çalıştığını göstermektedir.
+
+### 📈 Genel Değerlendirme Dashboard'u (Evaluation Dashboard)
+Sistem doğruluğu, niyet tespiti başarısı ve halüsinasyon koruma oranları gibi temel metriklerin özet dashboard görünümü:
+<p align="center">
+  <img src="reports/charts/evaluation_dashboard.png" alt="Değerlendirme Özeti" width="90%">
+</p>
+
+### 🔁 Rota Dağılımı ve Gecikme Analizi
+Gelen sorguların niyetine göre hangi RAG rotasına (direct, local_rag, site_crawl, tavily_web) yönlendirildiği ve bu rotaların ortalama yanıt gecikme süreleri (latency) aşağıda gösterilmiştir:
+
+| Rota Bazlı Gecikme Süreleri | Sorgu Rota Dağılımı |
+| :---: | :---: |
+| <img src="reports/charts/latency_by_route.png" alt="Rota Bazlı Gecikme" width="100%"> | <img src="reports/charts/route_distribution.png" alt="Yönlendirme Dağılımı" width="100%"> |
+
+### 🔍 Hassasiyet (Precision) ve Halüsinasyon Eğilimleri
+Sistemin arama hassasiyeti `0.895` ve halüsinasyon oranı `0.035` (güvenli bir şekilde `0.050` hedef eşiğinin altındadır) olarak ölçülmüştür.
+
+| Hassasiyet vs Gecikme Dağılımı | Zaman İçinde Halüsinasyon Oranı |
+| :---: | :---: |
+| <img src="reports/charts/precision_vs_latency.png" alt="Hassasiyet vs Gecikme" width="100%"> | <img src="reports/charts/hallucination_over_time.png" alt="Zaman İçinde Halüsinasyon Oranı" width="100%"> |
 
 ---
 
