@@ -1240,53 +1240,34 @@ def build_teknofest_graph(settings: Settings):
 
 
 # ---------------------------------------------------------------------------
-# Public run helper
+# Public run helper (Remote Dev Server & Local Fallback)
 # ---------------------------------------------------------------------------
 
+import os
+import uuid
+import httpx
+from langgraph_sdk import get_client
 
-@traceable(run_type="chain", name="rag_pipeline")
-async def run_graph(
-    graph,
-    question: str,
-    chat_history: List[Dict[str, str]] = None,
-    callbacks: list | None = None,          # E.3 — Langfuse / LangSmith callbacks
-    metadata: Dict[str, Any] | None = None, # Sprint 3 — session/user metadata
-) -> Dict[str, Any]:
-    """Wrapper used by FastAPI and tests."""
-    initial_state: GraphState = {
-        "question": question,
-        "chat_history": chat_history or [],
-        "rephrased_question": "",   # D.2 — node_rephrase tarafından doldurulur
-    }
-
-    # Invoke config — LangSmith run_name + E.3 Langfuse callbacks
-    invoke_config: Dict[str, Any] = {}
-    if is_tracing_enabled():
-        invoke_config["run_name"] = "teknofest-rag-query"
-        invoke_config["metadata"] = {"question_preview": question[:120]}
-
-    # Sprint 3 — session/user metadata merge
-    if metadata:
-        invoke_config.setdefault("metadata", {}).update(metadata)
-
-    # LangSmith ve Langfuse aynı callbacks listesinde birlikte çalışabilir
-    if callbacks:
-        invoke_config["callbacks"] = callbacks
-
-    invoke_kwargs: Dict[str, Any] = {}
-    if invoke_config:
-        invoke_kwargs["config"] = invoke_config
-
-    final_state = await graph.ainvoke(initial_state, **invoke_kwargs)
-    # Kaynak listesini güvenilirlik etiketleriyle oluştur
+def _build_sources_list(context_chunks: List[Any]) -> List[Dict[str, Any]]:
     sources_list = []
-    seen_sources = set()  # deduplicate by source path/url
-    for ch in final_state.get("context_chunks", []):
-        # Unique source identifier
+    seen_sources = set()
+    for ch in context_chunks or []:
+        # Support both RetrievedChunk object and serialized dict
+        if isinstance(ch, dict):
+            metadata = ch.get("metadata") or {}
+            source_type = ch.get("source_type") or "local_docs"
+            score = ch.get("score")
+            content = ch.get("content") or ""
+        else:
+            metadata = ch.metadata or {}
+            source_type = ch.source_type
+            score = ch.score
+            content = getattr(ch, "content", "")
+
         src_id = (
-            ch.metadata.get("source")
-            or ch.metadata.get("url")
-            or ch.metadata.get("crawl_source")
+            metadata.get("source")
+            or metadata.get("url")
+            or metadata.get("crawl_source")
             or ""
         )
         if src_id and src_id in seen_sources:
@@ -1295,29 +1276,112 @@ async def run_graph(
             seen_sources.add(src_id)
 
         source_entry = {
-            "type": ch.source_type,
-            "metadata": ch.metadata,
-            "score": round(ch.score, 3) if ch.score is not None else None,
-            "content_preview": ch.content[:200] if hasattr(ch, "content") else "",
+            "type": source_type,
+            "metadata": metadata,
+            "score": round(score, 3) if score is not None else None,
+            "content_preview": content[:200],
         }
-        
+
         # Güvenilirlik etiketleri
-        if ch.source_type == "local_docs":
+        if source_type == "local_docs":
             source_entry["trust_level"] = "high"
             source_entry["trust_label"] = "Resmi Doküman (Yerel)"
-        elif ch.source_type == "teknofest_site":
+        elif source_type == "teknofest_site":
             source_entry["trust_level"] = "high"
             source_entry["trust_label"] = "TEKNOFEST Resmi Sitesi"
-        elif ch.source_type == "tavily":
-            url = ch.metadata.get("url", "")
+        elif source_type == "tavily":
+            url = metadata.get("url", "")
             if any(d in url for d in ["teknofest.org", "cdn.teknofest.org", ".gov.tr"]):
                 source_entry["trust_level"] = "high"
                 source_entry["trust_label"] = "Resmi Kaynak"
             else:
                 source_entry["trust_level"] = "medium"
                 source_entry["trust_label"] = "Web Kaynağı"
-                
+
         sources_list.append(source_entry)
+    return sources_list
+
+
+async def _get_remote_client_url() -> str | None:
+    # 1. Check environment variable
+    env_url = os.getenv("LANGGRAPH_API_URL")
+    if env_url:
+        return env_url
+    
+    # 2. Check default dev server ports
+    for port in [2024, 8123]:
+        url = f"http://127.0.0.1:{port}"
+        try:
+            async with httpx.AsyncClient(timeout=0.1) as client:
+                res = await client.get(f"{url}/info")
+                if res.status_code == 200:
+                    return url
+        except Exception:
+            continue
+    return None
+
+
+@traceable(run_type="chain", name="teknofest-rag-query")
+async def run_graph(
+    graph,
+    question: str,
+    chat_history: List[Dict[str, str]] = None,
+    callbacks: list | None = None,
+    metadata: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Wrapper used by FastAPI and tests. Runs on remote dev server if active, otherwise runs locally."""
+    initial_state: GraphState = {
+        "question": question,
+        "chat_history": chat_history or [],
+        "rephrased_question": "",
+    }
+
+    # Try running on remote langgraph dev server
+    remote_url = await _get_remote_client_url()
+    if remote_url:
+        try:
+            client = get_client(url=remote_url)
+            thread_id = (metadata or {}).get("session_id") or str(uuid.uuid4())
+            
+            try:
+                await client.threads.get(thread_id)
+            except Exception:
+                await client.threads.create(thread_id=thread_id)
+                
+            run_res = await client.runs.wait(
+                thread_id=thread_id,
+                assistant_id="teknofest_rag",
+                input=initial_state,
+            )
+            final_state = run_res.get("values", {})
+            sources_list = _build_sources_list(final_state.get("context_chunks", []))
+            return {
+                "answer": final_state.get("answer", ""),
+                "sources": sources_list,
+                "route_taken": final_state.get("route_taken", "unknown"),
+                "meta": final_state.get("meta", {}),
+            }
+        except Exception as exc:
+            logger.warning("Remote graph run failed: %s. Falling back to local execution.", exc)
+
+    # Local fallback execution
+    invoke_config: Dict[str, Any] = {}
+    if is_tracing_enabled():
+        invoke_config["run_name"] = "teknofest-rag-query"
+        invoke_config["metadata"] = {"question_preview": question[:120]}
+
+    if metadata:
+        invoke_config.setdefault("metadata", {}).update(metadata)
+
+    if callbacks:
+        invoke_config["callbacks"] = callbacks
+
+    invoke_kwargs: Dict[str, Any] = {}
+    if invoke_config:
+        invoke_kwargs["config"] = invoke_config
+
+    final_state = await graph.ainvoke(initial_state, **invoke_kwargs)
+    sources_list = _build_sources_list(final_state.get("context_chunks", []))
 
     return {
         "answer": final_state.get("answer", ""),
@@ -1334,13 +1398,59 @@ async def run_graph_stream(
     callbacks: list | None = None,
     metadata: Dict[str, Any] | None = None,
 ):
-    """Asynchronously execute graph.astream_events and yield tokens and metadata."""
+    """Asynchronously execute graph and yield tokens/metadata. Runs remotely if dev server is active."""
     initial_state: GraphState = {
         "question": question,
         "chat_history": chat_history or [],
         "rephrased_question": "",
     }
 
+    # Try streaming from remote langgraph dev server
+    remote_url = await _get_remote_client_url()
+    if remote_url:
+        try:
+            client = get_client(url=remote_url)
+            thread_id = (metadata or {}).get("session_id") or str(uuid.uuid4())
+            
+            try:
+                await client.threads.get(thread_id)
+            except Exception:
+                await client.threads.create(thread_id=thread_id)
+                
+            final_state = None
+            async for part in client.runs.stream(
+                thread_id=thread_id,
+                assistant_id="teknofest_rag",
+                input=initial_state,
+                stream_mode="events"
+            ):
+                if part.event == "events":
+                    event_data = part.data
+                    event_name = event_data.get("event")
+                    name = event_data.get("name")
+                    tags = event_data.get("tags") or []
+                    
+                    if event_name == "on_chat_model_stream" and "final_synthesizer" in tags:
+                        chunk = event_data.get("data", {}).get("chunk", {})
+                        content = chunk.get("content") if isinstance(chunk, dict) else getattr(chunk, "content", "")
+                        if content:
+                            yield {"type": "token", "content": content}
+                    elif event_name == "on_chain_end" and name == "teknofest_rag":
+                        final_state = event_data.get("data", {}).get("output", {})
+
+            if final_state:
+                sources_list = _build_sources_list(final_state.get("context_chunks", []))
+                yield {
+                    "type": "done",
+                    "sources": sources_list,
+                    "route_taken": final_state.get("route_taken", "unknown"),
+                    "meta": final_state.get("meta", {}),
+                }
+                return
+        except Exception as exc:
+            logger.warning("Remote graph stream failed: %s. Falling back to local execution.", exc)
+
+    # Local fallback streaming
     invoke_config: Dict[str, Any] = {}
     if is_tracing_enabled():
         invoke_config["run_name"] = "teknofest-rag-query"
@@ -1361,58 +1471,21 @@ async def run_graph_stream(
         kind = event["event"]
         tags = event.get("tags", [])
         
-        # Stream the tokens of the final synthesizer
         if kind == "on_chat_model_stream" and "final_synthesizer" in tags:
             content = event["data"]["chunk"].content
             if content:
                 yield {"type": "token", "content": content}
                 
-        # Intercept the end of the Pregel graph chain to get final state
         elif kind == "on_chain_end":
             output = event["data"].get("output")
             if isinstance(output, dict) and "answer" in output and "context_chunks" in output:
                 final_state = output
 
-    # Build sources_list if final_state is captured
     sources_list = []
     route_taken = "unknown"
     if final_state:
         route_taken = final_state.get("route_taken", "unknown")
-        seen_sources = set()
-        for ch in final_state.get("context_chunks", []):
-            src_id = (
-                ch.metadata.get("source")
-                or ch.metadata.get("url")
-                or ch.metadata.get("crawl_source")
-                or ""
-            )
-            if src_id and src_id in seen_sources:
-                continue
-            if src_id:
-                seen_sources.add(src_id)
-
-            source_entry = {
-                "type": ch.source_type,
-                "metadata": ch.metadata,
-                "score": round(ch.score, 3) if ch.score is not None else None,
-                "content_preview": ch.content[:200] if hasattr(ch, "content") else "",
-            }
-
-            if ch.source_type == "local_docs":
-                source_entry["trust_level"] = "high"
-                source_entry["trust_label"] = "Resmi Doküman (Yerel)"
-            elif ch.source_type == "teknofest_site":
-                source_entry["trust_level"] = "high"
-                source_entry["trust_label"] = "TEKNOFEST Resmi Sitesi"
-            elif ch.source_type == "tavily":
-                url = ch.metadata.get("url", "")
-                if any(d in url for d in ["teknofest.org", "cdn.teknofest.org", ".gov.tr"]):
-                    source_entry["trust_level"] = "high"
-                    source_entry["trust_label"] = "Resmi Kaynak"
-                else:
-                    source_entry["trust_level"] = "medium"
-                    source_entry["trust_label"] = "Web Kaynağı"
-            sources_list.append(source_entry)
+        sources_list = _build_sources_list(final_state.get("context_chunks", []))
 
     yield {
         "type": "done",
