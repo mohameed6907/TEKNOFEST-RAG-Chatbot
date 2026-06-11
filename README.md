@@ -464,6 +464,20 @@ uvicorn app.main:app --port 8010 --reload
 ```
 Uygulamayı tarayıcınızdan **http://127.0.0.1:8010/** adresine giderek test edebilirsiniz.
 
+### LangGraph Studio ile Birlikte Çalıştırma (Önerilen / Recommended):
+Hem API sunucusunu hem de LangGraph Studio (dev) sunucusunu aynı anda başlatıp görsel takip yapmak için:
+
+**Docker/Linux (Terminal içi):**
+```bash
+chmod +x start_all.sh
+./start_all.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_all.ps1
+```
+
 ### Otomatik Testleri Çalıştırma:
 Tüm birim testleri (mock yapılandırmalarıyla, canlı API isteği atmadan) çalıştırmak için:
 

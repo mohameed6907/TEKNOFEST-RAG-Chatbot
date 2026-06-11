@@ -25,6 +25,8 @@ env/
 # =========================
 RAG/chroma_local_docs/
 RAG/chroma_teknofest_site/
+*.pckl
+.langgraph_api/
 
 # =========================
 # Logs
