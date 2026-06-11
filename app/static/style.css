@@ -153,7 +153,8 @@ button {
 #auth-view {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
+    padding-right: 12%;
     position: relative;
     background: radial-gradient(circle at 10% 20%, rgba(31, 92, 132, 0.08) 0%, transparent 45%),
                 radial-gradient(circle at 90% 80%, rgba(161, 43, 41, 0.08) 0%, transparent 45%),
@@ -172,26 +173,25 @@ body.dark-mode #auth-view {
 
 .auth-watermark {
     position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(95vw, 750px);
-    height: min(95vh, 750px);
+    top: 50%;
+    left: 12%;
+    transform: translateY(-50%);
+    width: 480px;
+    height: 480px;
     background-image: url("/static/logo.png");
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
-    filter: grayscale(100%) contrast(0.5) brightness(1.2);
-    mix-blend-mode: multiply;
-    opacity: 0.18;
+    opacity: 0.12;
     pointer-events: none;
     z-index: 1;
-    transition: filter 0.3s ease, opacity 0.3s ease;
+    transition: filter 0.3s ease, opacity 0.3s ease, left 0.3s ease, top 0.3s ease, transform 0.3s ease;
 }
 
 body.dark-mode .auth-watermark {
-    filter: brightness(0) invert(1) opacity(0.6);
-    mix-blend-mode: screen;
+    filter: invert(1) brightness(1.8);
     opacity: 0.12;
+    mix-blend-mode: normal;
 }
 
 .auth-card {
@@ -428,8 +428,8 @@ body.dark-mode .theme-toggle-auth:hover {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: min(70vw, 450px);
-    height: min(70vw, 450px);
+    width: min(80vw, 550px);
+    height: min(80vw, 550px);
     background-image: url("/static/logo.png");
     background-size: contain;
     background-position: center;
@@ -441,8 +441,8 @@ body.dark-mode .theme-toggle-auth:hover {
 }
 
 body.dark-mode .main-content::before {
-    filter: brightness(0) invert(1);
-    opacity: 0.08;
+    filter: invert(1) brightness(1.8);
+    opacity: 0.12;
 }
 
 .messages-container {
@@ -645,4 +645,20 @@ body.admin-mode .admin-card {
 @keyframes fire-flicker {
     0% { filter: drop-shadow(0 4px 2px rgba(243, 147, 94, 0.4)); transform: translateY(0); }
     100% { filter: drop-shadow(0 10px 5px rgba(243, 147, 94, 0.9)); transform: translateY(-1px); }
+}
+
+/* Responsive Rules */
+@media (max-width: 900px) {
+    #auth-view {
+        justify-content: center;
+        padding-right: 0;
+    }
+    .auth-watermark {
+        top: 20%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 180px;
+        height: 180px;
+        opacity: 0.08;
+    }
 }

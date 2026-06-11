@@ -305,10 +305,36 @@ def fetch_teknofest_competition_page(competition_slug: str) -> str:
                           e.g. 'insansiz-kara-araci-yarismasi'
     """
     import httpx
+    import re
     from html.parser import HTMLParser
     
-    # Try to resolve the slug from the dictionary first in case the LLM passed a generic keyword
-    resolved_slug = SLUG_MAP.get(competition_slug.lower().strip(), competition_slug)
+    cleaned_input = competition_slug.lower().strip()
+    
+    def norm(t: str) -> str:
+        return (
+            t.replace("ı", "i")
+            .replace("ğ", "g")
+            .replace("ş", "s")
+            .replace("ü", "u")
+            .replace("ö", "o")
+            .replace("ç", "c")
+            .replace("_", "-")
+            .replace(" ", "-")
+        )
+    
+    input_norm = norm(cleaned_input)
+    resolved_slug = None
+    
+    for k, v in SLUG_MAP.items():
+        if norm(k) == input_norm or norm(v) == input_norm:
+            resolved_slug = v
+            break
+            
+    if not resolved_slug:
+        resolved_slug = norm(cleaned_input)
+        resolved_slug = re.sub(r"[^a-z0-9\-]+", "-", resolved_slug)
+        resolved_slug = re.sub(r"-+", "-", resolved_slug).strip("-")
+
 
     class _TextExtractor(HTMLParser):
         """Minimal HTML → plain-text extractor (stdlib only, no extra deps)."""

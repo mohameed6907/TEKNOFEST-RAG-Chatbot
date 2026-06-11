@@ -363,6 +363,52 @@ async def node_rephrase(state: GraphState, settings: Settings) -> GraphState:
     return state
 
 
+def _is_false_positive(query: str, chunks: List[RetrievedChunk]) -> bool:
+    if not chunks:
+        return False
+    q_lower = query.lower()
+    
+    # Normalizing Turkish characters for robust matching
+    q_norm = q_lower.replace("ı", "i").replace("ğ", "g").replace("ş", "s").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+    
+    keywords = [
+        "insansiz kara", "insansız kara", "kara arac",
+        "insansiz hava", "insansız hava", "iha",
+        "drone", "robolig", "robotik",
+        "yazilim", "yazılım",
+        "yapay zeka", "saglikta yapay", "sağlıkta yapay",
+        "model uydu", "roket", "kuantum",
+        "biyoteknoloji", "blokzincir", "cip tasarim", "çip tasarım",
+        "e-ticaret", "surdurulebilir sehir", "finansal teknoloji", "fintek",
+        "uydu terminal", "hyperloop", "deniz araci", "su alti",
+        "jet motor", "iklim degisikligi", "kutup arastirma",
+        "nukleer enerji", "onkoloji", "pardus", "robotaksi",
+        "tarim", "dogal dil", "elektronik harp", "maden",
+        "yol guvenligi", "yol güvenliği", "lojistik",
+        "havacilikta yapay", "havacılıkta yapay", "hava savunma",
+        "elektrikli arac", "elektrikli araç"
+    ]
+    
+    matched_keywords = []
+    for kw in keywords:
+        kw_norm = kw.replace("ı", "i").replace("ğ", "g").replace("ş", "s").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+        if kw in q_lower or kw_norm in q_norm:
+            matched_keywords.append(kw)
+            
+    if not matched_keywords:
+        return False
+        
+    combined_content = " ".join([c.content.lower() for c in chunks[:3]])
+    combined_content_norm = combined_content.replace("ı", "i").replace("ğ", "g").replace("ş", "s").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+    
+    for kw in matched_keywords:
+        kw_norm = kw.replace("ı", "i").replace("ğ", "g").replace("ş", "s").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+        if kw in combined_content or kw_norm in combined_content_norm:
+            return False # true positive (found keyword in top chunks)
+            
+    return True # false positive (keyword present in query but not in top chunks)
+
+
 # ---- Local RAG ----
 
 def node_local_rag(state: GraphState, settings: Settings) -> GraphState:
@@ -373,6 +419,12 @@ def node_local_rag(state: GraphState, settings: Settings) -> GraphState:
         source_type="local_docs",
         k=settings.retrieval_top_k,
     )
+    
+    # Check if the retrieved chunks are a false positive match
+    raw_query = state.get("rephrased_question") or state["question"]
+    if _is_false_positive(raw_query, chunks):
+        logger.info("Local RAG false positive detected for query: %s. Clearing chunks.", raw_query)
+        chunks = []
     
     confidence = estimate_chunk_confidence(chunks, settings)
     state.setdefault("meta", {})["local_confidence"] = confidence
@@ -426,6 +478,13 @@ def node_teknofest_web(state: GraphState, settings: Settings) -> GraphState:
         source_type="teknofest_site",
         k=settings.retrieval_top_k,
     )
+    
+    # Check if the retrieved chunks are a false positive match
+    raw_query = state.get("rephrased_question") or state["question"]
+    if _is_false_positive(raw_query, chunks):
+        logger.info("Site RAG false positive detected for query: %s. Clearing chunks.", raw_query)
+        chunks = []
+        
     state.setdefault("retrieved_chunks", []).extend(chunks)
     state.setdefault("meta", {})["site_confidence"] = estimate_chunk_confidence(chunks, settings)
     if chunks and estimate_chunk_confidence(chunks, settings) >= settings.rag_confidence_threshold:
@@ -784,7 +843,7 @@ async def node_live_answer_synthesizer(state: GraphState, settings: Settings) ->
             "Sen TEKNOFEST bilgi asistanısın.\n"
             "Aşağıda TEKNOFEST'in resmi sayfasından veya güvenilir web kaynaklarından alınmış CANLI veri var.\n"
             "Bu veriden gelen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek 2026 verisidir.\n"
-            "Bağlamda rakam/tarih YOKsa: 'Bu konuda güncel bilgiye ulaşamadım.' de.\n"
+            "Eğer soru ödül miktarı, tarih veya sayısal bir değer gibi zaman hassasiyeti olan bir bilgi istiyorsa ve bağlamda rakam/tarih YOKsa: 'Bu konuda güncel bilgiye ulaşamadım.' de. Genel tanıtım veya açıklama sorularında bağlamdaki açıklamalara göre detaylı bilgi ver.\n"
             "ASLA bağlamda olmayan bir rakam üretme — ne eski VectorDB verisini ne de kendi hafızanı kullan.\n"
             "YASAK: 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi yönlendirme ifadeleri.\n"
             "Türkçe cevapla."
@@ -896,7 +955,7 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
             PERSONALITY_PREFIX + "\n\n"
             "Sen TEKNOFEST uzmanısın. Sana Tavily'den gerçek kaynaklar sağlandıysa onları kullanarak somut bilgi ver.\n"
             "Kaynaklarda geçen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek verilerdir.\n"
-            "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
+            "Eğer soru ödül miktarı, tarih veya sayısal bir değer gibi zaman hassasiyeti olan bir bilgi istiyorsa ve kaynaklarda rakam/tarih YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de. Genel tanıtım veya açıklama sorularında kaynaklardaki açıklamalara göre detaylı bilgi ver.\n"
             "Asla kaynaklarda olmayan bir rakam üretme.\n"
             "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
             "Cevabını yapısal olarak organize et: başlıklar, madde listeleri veya tablolar kullan.\n"
@@ -920,7 +979,7 @@ async def node_llm_knowledge(state: GraphState, settings: Settings) -> GraphStat
             PERSONALITY_PREFIX + "\n\n"
             "Sen TEKNOFEST uzmanısın. Sana Tavily'den gerçek kaynaklar sağlandıysa onları kullanarak somut bilgi ver.\n"
             "Kaynaklarda geçen rakamları (ödül miktarı, tarih vb.) kullanabilirsin — bunlar gerçek verilerdir.\n"
-            "Kaynaklarda rakam YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de.\n"
+            "Eğer soru ödül miktarı, tarih veya sayısal bir değer gibi zaman hassasiyeti olan bir bilgi istiyorsa ve kaynaklarda rakam/tarih YOKsa: 'Bu konuda elimde yeterli bilgi bulunmuyor' de. Genel tanıtım veya açıklama sorularında kaynaklardaki açıklamalara göre detaylı bilgi ver.\n"
             "Asla kaynaklarda olmayan bir rakam üretme.\n"
             "YASAK: Kullanıcıyı dış siteye yönlendirme, 'ziyaret edin', 'kontrol edin', 'resmi siteye bakın' gibi ifadeler kullanma.\n"
             "Cevabını yapısal olarak organize et: başlıklar, madde listeleri veya tablolar kullan.\n"
@@ -1038,12 +1097,23 @@ async def node_hallucination_guard(state: GraphState, settings: Settings) -> Gra
 
 def _decide_after_hallucination_guard(state: GraphState) -> str:
     """
-    If agent rejected answer ('bulunamadı') but we have context,
+    If agent rejected answer but we have context (or generic fallback is needed),
     route to llm_knowledge for general knowledge synthesis.
     """
     answer = state.get("answer", "").strip()
     has_context = bool(state.get("context_chunks"))
-    is_rejection = "bulunamadı" in answer.lower() or answer == "Sağlanan belgelerden ilgili bilgi bulamadım."
+    
+    answer_lower = answer.lower()
+    rejection_keywords = [
+        "bulunamadı", "bulamadım", "ulaşamadım", "erişemedim", 
+        "bilgi bulunmuyor", "bilgi yok", "bilgiye sahip değilim", 
+        "bilgi mevcut değil", "bilgiye ulaşamadım", "bilgi bulunmamaktadır",
+        "yeterli bilgi", "ulaşılamadı", "doğrulanmış bilgi"
+    ]
+    is_rejection = (
+        any(kw in answer_lower for kw in rejection_keywords)
+        or answer == "Sağlanan belgelerden ilgili bilgi bulamadım."
+    )
     current_route = state.get("route_taken", "")
     
     # If we have context but agent said "not found", fallback to general knowledge

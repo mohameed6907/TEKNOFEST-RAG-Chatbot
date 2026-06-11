@@ -1,0 +1,56 @@
+=== RESPONSE ===
+### TEKNOFEST Blokzincir Yarışması
+
+**Yarışma Hakkında:**
+TEKNOFEST Blokzincir Yarışması, blokzincir teknolojisine olan ilgiyi artırmak ve bu alandaki bilgi birikimini geliştirmek amacıyla düzenlenmektedir. Katılımcılar, kamu yönetimi, finans, bankacılık, eğitim ve tedarik zinciri gibi alanlarda karşılaşılan güncel sorunlara yönelik yenilikçi ve sürdürülebilir çözümler geliştirmeyi hedeflemektedir.
+
+**Yarışma Temaları:**
+- Yüksek Başarımlı ve Ölçeklenebilir DLT Altyapıları
+- DLT Sistemlerinde Mahremiyet
+- Dijital Cüzdanlar
+- Blokzincir Kriptolojisi
+- Blokzincir Güvenliği
+- Kripto Varlık Regülasyon Altyapıları
+- Seçilmiş DLT Uygulama Alanları
+
+**Katılım Koşulları:**
+- Yarışmaya, lisans, yüksek lisans, doktora öğrencileri ve mezunları (mezuniyetlerinden sonra en fazla 3 yıl geçmiş olanlar) katılabilir.
+- Yarışmacılar en az 2, en fazla 5 kişilik takımlar halinde başvurabilir.
+
+**Değerlendirme Aşamaları:**
+1. Proje Ön Değerlendirme Raporu
+2. Proje Sunum Raporu
+3. Proje Sunum Aşaması (Çevrim İçi)
+4. Final Sunumu
+
+### Yarışma Takvimi 2026
+| Açıklama | Tarih |
+|----------|-------|
+| Yarışma Son Başvuru Tarihi | 28.02.2026 |
+| Proje Ön Değerlendirme Raporu Son Teslim Tarihi | 27.03.2026 - 17:00 |
+| Ön Eleme Sonuçlarının Açıklanması | 24.04.2026 |
+| Proje Sunum Raporu Teslim Tarihi | 26.06.2026 - 17:00 |
+| Proje Sunum Aşaması (Çevrim İçi) | 20-25.07.2026 |
+| Finalistlerin Açıklanması | 31.07.2026 |
+| Yarışma Finalleri | Ağustos-Eylül 2026 |
+| TEKNOFEST Şanlıurfa | 30 Eylül – 4 Ekim 2026 |
+
+### Ödüller
+| Derece | Ödül |
+|--------|------|
+| Birinci | 200.000 ₺ |
+| İkinci | 150.000 ₺ |
+| Üçüncü | 100.000 ₺ |
+
+Bu yarışma, teknoloji tutkunları için harika bir fırsat! Eğer katılmayı düşünüyorsanız, projelerinizi geliştirmek için gereken tüm bilgileri ve destekleri alabileceğinizden emin olabilirsiniz. Şimdi, projelerinizi şekillendirmeye başlayabilirsiniz!
+
+=== ROUTE TAKEN ===
+site
+
+=== SOURCES ===
+- https://teknofest.org/tr/duyurular/teknofest-blokzincir-yarismasi-on-degerlendirme-raporu-sonuclari-aciklandi
+- https://teknofest.org/tr/duyurular
+- https://teknofest.org/tr/competitions/competition/17
+- https://www.teknofest.org/tr/competitions/competition/287
+- https://teknofest.org/tr/competitions/competition/28
+- https://teknofest.org/tr/competitions/competition/43
